@@ -1,0 +1,152 @@
+{
+  "Repository": "core-setup",
+  "Definitions": {
+    "Path": ".",
+    "Type": "VSTS",
+    "BaseUrl": "https://devdiv.visualstudio.com/DefaultCollection"
+  },
+  "Pipelines": [
+    {
+      "Name": "Trusted-All-Release",
+      "Parameters": {
+        "TreatWarningsAsErrors": "false"
+      },
+      "BuildParameters": {
+        "BuildConfiguration": "Release"
+      },
+      "Definitions": [
+        {
+          "Name": "Core-Setup-Linux-BT",
+          "Parameters": {
+            "PB_DistroRid": "rhel.7.2-x64",
+            "PB_DockerTag": "rhel7_prereqs_2",
+            "PB_AdditionalBuildArguments":"-PortableBuild=true -strip-symbols",
+            "PB_PortableBuild": "true"
+          },
+          "ReportingParameters": {
+            "SubType": "PortableBuild",
+            "OperatingSystem": "RedHat 7",
+            "Type": "build/product/",
+            "Platform": "x64"
+          }
+        },
+        {
+          "Name": "Core-Setup-Linux-Arm-BT", 
+          "Parameters": { 
+            "PB_DistroRid": "ubuntu.14.04-arm", 
+            "PB_DockerTag": "ubuntu-14.04-cross-0cd4667-20172211042239", 
+            "PB_TargetArchitecture": "arm", 
+            "PB_AdditionalBuildArguments":"-TargetArchitecture=arm -DistroRid=linux-arm -DisableCrossgen=true -PortableBuild=true -SkipTests=true -CrossBuild=true -strip-symbols",
+            "PB_CrossBuildArgs": "-e ROOTFS_DIR ",
+            "PB_PortableBuild": "true" 
+          }, 
+          "ReportingParameters": { 
+            "SubType": "PortableBuild", 
+            "OperatingSystem": "Ubuntu 14.04", 
+            "Type": "build/product/", 
+            "Platform": "arm" 
+          } 
+        },         
+        {
+          "Name": "Core-Setup-OSX-BT",
+          "Parameters": {
+            "PB_PortableBuildArg": "-PortableBuild=true -strip-symbols",
+            "PB_PortableBuild": "true"
+          },
+          "ReportingParameters": {
+            "SubType": "PortableBuild",
+            "OperatingSystem": "OSX",
+            "Type": "build/product/",
+            "Platform": "x64"
+          }
+        },
+        {
+          "Name": "Core-Setup-Windows-Arm-BT",
+          "Parameters": {
+            "PB_AdditionalBuildArguments": "/p:SkipTests=true",
+            "PB_TargetArchitecture": "arm",
+            "PB_DistroRid": "win-arm",
+            "PB_PortableBuild": "true"
+          },
+          "ReportingParameters": {
+            "SubType": "PortableBuild",
+            "OperatingSystem": "Windows",
+            "Type": "build/product/",
+            "Platform": "arm"
+          }
+        },
+        {
+          "Name": "Core-Setup-Windows-Arm-BT",
+          "Parameters": {
+            "PB_AdditionalBuildArguments": "/p:SkipTests=true /p:NativeToolSetDir=C:\\tools\\clr",
+            "PB_TargetArchitecture": "arm64",
+            "PB_DistroRid": "win-arm64",
+            "PB_PortableBuild": "true"
+          },
+          "ReportingParameters": {
+            "SubType": "PortableBuild",
+            "OperatingSystem": "Windows",
+            "Type": "build/product/",
+            "Platform": "arm64"
+          }
+        },
+        {
+          "Name": "Core-Setup-Windows-BT",
+          "Parameters": {
+            "PB_DistroRid": "win7-x64",
+            "PB_TargetArchitecture": "x64",
+            "PB_PortableBuild": "true",
+            "PB_PublishRidAgnosticPackages": "true",
+            "PB_BuildFullPlatformManifest": "true"
+          },
+          "ReportingParameters": {
+            "OperatingSystem": "Windows",
+            "SubType": "PortableBuild",
+            "Type": "build/product/",
+            "Platform": "x64"
+          }
+        },
+        {
+          "Name": "Core-Setup-Windows-BT",
+          "Parameters": {
+            "PB_DistroRid": "win7-x86",
+            "PB_TargetArchitecture": "x86",
+            "PB_PortableBuild": "true"
+          },
+          "ReportingParameters": {
+            "OperatingSystem": "Windows",
+            "SubType": "PortableBuild",
+            "Type": "build/product/",
+            "Platform": "x86"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Publish finalized build",
+      "Parameters": {
+        "TreatWarningsAsErrors": "false"
+      },
+      "BuildParameters": {
+        "BuildConfiguration": "Release"
+      },
+      "Definitions": [
+        {
+          "Name": "Core-Setup-Publish",
+          "Parameters": {
+            "PB_TargetArchitecture": "x64",
+          },
+          "ReportingParameters": {
+            "OperatingSystem": "Windows",
+            "SubType": "Publish",
+            "Type": "build/product/",
+            "Platform": "x64"
+          }
+        }
+      ],
+      "DependsOn": [
+        "Trusted-All-Release"
+      ]
+    }
+  ]
+}
