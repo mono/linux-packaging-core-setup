@@ -10,7 +10,7 @@ Section: libs
 Homepage: https://github.com/dotnet/core-setup
 
 Package: msbuild-libhostfxr
-Architecture: any
+Architecture: amd64 i386 armel armhf arm64
 Depends: ${shlibs:Depends}, ${misc:Depends}, msbuild-sdkresolver
 Description: Helper library for MSbuild .NET Core support
  This library helps MSbuild find .NET Core SDK installations
