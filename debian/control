@@ -1,0 +1,13 @@
+Source: core-setup
+Priority: optional
+Maintainer: Jo Shields <joshield@microsoft.com>
+Build-Depends: debhelper (>= 7.0.50~), cmake, g++
+Standards-Version: 3.9.8
+Section: libs
+Homepage: https://github.com/dotnet/core-setup
+
+Package: msbuild-libhostfxr
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, msbuild-sdkresolver
+Description: Helper library for MSbuild .NET Core support
+ This library helps MSbuild find .NET Core SDK installations
