@@ -1,2 +1,3 @@
+dont_use_add_compile_options.diff
 avoid-gcc49-features.patch
 avoid_cmake_unknown_command.patch
