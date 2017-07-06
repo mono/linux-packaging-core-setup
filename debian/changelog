@@ -1,3 +1,14 @@
+core-setup (2.0.0.2017.07.06.00.01-0xamarin6) alpha; urgency=medium
+
+  [ Xamarin Public Jenkins (auto-signing) ]
+  * Packaging bugfix:
+
+  [ Ubuntu ]
+  * [9ba426e] Merge branch 'master' of github.com:mono/linux-packaging-
+    core-setup [86b5d67] JESUS CHRIST [76186d3] Revert "Refreshed patch"
+
+ -- Xamarin Public Jenkins (auto-signing) <releng@xamarin.com>  Thu, 06 Jul 2017 14:49:12 +0000
+
 core-setup (2.0.0.2017.07.06.00.01-0xamarin5) alpha; urgency=medium
 
   * Packaging bugfix:
