@@ -38,7 +38,7 @@ override_dh_auto_configure:
 
 override_dh_auto_install:
 ifdef LIBHOSTFXR_ARCH
-        install -D -m 644 src/corehost/cli/fxr/libhostfxr.so debian/msbuild-libhostfxr/usr/lib/mono/msbuild/15.0/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
+	install -D -m 644 src/corehost/cli/fxr/libhostfxr.so debian/msbuild-libhostfxr/usr/lib/mono/msbuild/15.0/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
 else
 	true
 endif
