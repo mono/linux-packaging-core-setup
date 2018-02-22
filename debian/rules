@@ -44,6 +44,9 @@ else
 endif
 
 override_dh_auto_build:
+ifneq (,$(wildcard /usr/lib/gcc-mozilla/bin/gcc))
+        patch -p1 < debian/patches/static-libstdcplusplus 
+endif
 ifdef LIBHOSTFXR_ARCH
 	cd src/corehost/cli/fxr/ && $(GCC) cmake . -D$(CMAKEARCH) -DCLI_CMAKE_HOST_POLICY_VER=1.0.0 -DCLI_CMAKE_HOST_FXR_VER=2.0.0-preview2-25407-01 -DCLI_CMAKE_HOST_VER=1.0.0 -DCLI_CMAKE_APPHOST_VER=1.0.0 -DCLI_CMAKE_PKG_RID=ubuntu.14.04-x64 -DCLI_CMAKE_COMMIT_HASH=bd3f818bad84f1296b4ee53f72ab8837b3caac98 -DCLI_CMAKE_PORTABLE_BUILD=1 && $(GCC) make
 else
