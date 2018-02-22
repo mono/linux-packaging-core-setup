@@ -1,3 +1,15 @@
+core-setup (2.0.0.2017.07.06.00.01-0xamarin18) preview; urgency=medium
+
+  [ Xamarin Public Jenkins (auto-signing) ]
+  * Packaging bugfix:
+
+  [ Ubuntu ]
+  * [bab50e0] Merge branch 'master' of github.com:mono/linux-packaging-
+    core-setup [1a2c681] Hack so static libstdc++ is only when using gcc-
+    mozilla
+
+ -- Xamarin Public Jenkins (auto-signing) <releng@xamarin.com>  Thu, 22 Feb 2018 22:00:51 +0000
+
 core-setup (2.0.0.2017.07.06.00.01-0xamarin17) preview; urgency=medium
 
   * Packaging bugfix:
