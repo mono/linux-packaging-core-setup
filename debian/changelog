@@ -1,3 +1,9 @@
+core-setup (2.0.0.2017.07.06.00.01-0xamarin20) preview; urgency=medium
+
+  * Packaging bugfix:
+
+ -- Xamarin Public Jenkins (auto-signing) <releng@xamarin.com>  Fri, 30 Mar 2018 15:08:58 +0000
+
 core-setup (2.0.0.2017.07.06.00.01-0xamarin19) preview; urgency=medium
 
   * Packaging bugfix:
