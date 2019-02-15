@@ -24,6 +24,7 @@ Source0:        core-setup-%{version}.tar.gz
 Patch0:		avoid-gcc49-features.patch
 Patch1:         avoid_cmake_unknown_command.patch
 Patch2:         dont_use_add_compile_options.diff
+Patch3:         23510ddc07acb714c1dace14322ef047f9f1c888.diff
 %if 0%{?rhel} >= 7
 BuildRequires:  cmake
 BuildRequires:  gcc-c++
@@ -49,6 +50,7 @@ functionality is notavailable
 %patch0 -p1
 %patch1 -p1
 %patch2 -p1
+%patch3 -p1
 
 %build
 %if 0%{?rhel} >= 7
