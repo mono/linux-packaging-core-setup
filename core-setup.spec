@@ -31,6 +31,8 @@ BuildRequires:  gcc-c++
 Requires:       msbuild-sdkresolver
 %endif
 
+%define debug_package %{nil}
+
 %description
 The Microsoft Build Engine is a platform for building applications.
 This engine, which is also known as MSBuild, provides an XML schema
