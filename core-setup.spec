@@ -14,7 +14,7 @@
 
 Name:           msbuild-libhostfxr
 Version:	2.0.0.2017.07.06.00.01
-Release:	0.xamarin.3
+Release:	1.xamarin.1
 Summary:        Build system for .NET projects - unmanaged helper library
 License:        MIT
 Group:          Development/Libraries/Other
@@ -64,12 +64,12 @@ cd src/corehost/cli/fxr/ && cmake . -DCLI_CMAKE_PLATFORM_ARCH_AMD64=1 -DCLI_CMAK
 %install
 %if 0%{?rhel} >= 7
 %{?env_options}
-%__mkdir_p %{buildroot}/%{_prefix}/lib/mono/msbuild/15.0/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
-cp src/corehost/cli/fxr/libhostfxr.so %{buildroot}/%{_prefix}/lib/mono/msbuild/15.0/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
+%__mkdir_p %{buildroot}/%{_prefix}/lib/mono/msbuild/Current/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
+cp src/corehost/cli/fxr/libhostfxr.so %{buildroot}/%{_prefix}/lib/mono/msbuild/Current/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
 %endif
 
 %files
 %defattr(-,root,root)
 %if 0%{?rhel} >= 7
-%{_prefix}/lib/mono/msbuild/15.0/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/*
+%{_prefix}/lib/mono/msbuild/Current/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/*
 %endif
