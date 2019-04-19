@@ -1,3 +1,9 @@
+core-setup (2.0.0.2017.07.06.00.01-1nightly2) nightly; urgency=medium
+
+  * Packaging bugfix:
+
+ -- Xamarin Public Jenkins (auto-signing) <releng@xamarin.com>  Fri, 19 Apr 2019 17:50:15 +0000
+
 core-setup (2.0.0.2017.07.06.00.01-1nightly1) nightly; urgency=medium
 
   * Packaging bugfix:
