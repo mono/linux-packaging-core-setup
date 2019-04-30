@@ -21,10 +21,8 @@ Group:          Development/Libraries/Other
 Url:            https://github.com/dotnet/core-setup
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 Source0:        core-setup-%{version}.tar.gz
-Patch0:		avoid-gcc49-features.patch
-Patch1:         avoid_cmake_unknown_command.patch
-Patch2:         dont_use_add_compile_options.diff
-Patch3:         23510ddc07acb714c1dace14322ef047f9f1c888.diff
+Patch0:         avoid_cmake_unknown_command.patch
+Patch1:         a-gcc-is-fine-too.patch
 %if 0%{?rhel} >= 7
 BuildRequires:  cmake
 BuildRequires:  gcc-c++
@@ -48,24 +46,22 @@ functionality is notavailable
 %endif
 
 %prep
-%setup -n core-setup-release-2.0.0
+%setup -n core-setup-3.0.0
 %patch0 -p1
 %patch1 -p1
-%patch2 -p1
-%patch3 -p1
 
 %build
 %if 0%{?rhel} >= 7
 %{?exp_env}
 %{?env_options}
-cd src/corehost/cli/fxr/ && cmake . -DCLI_CMAKE_PLATFORM_ARCH_AMD64=1 -DCLI_CMAKE_HOST_POLICY_VER=1.0.0 -DCLI_CMAKE_HOST_FXR_VER=2.0.0-preview2-25407-01 -DCLI_CMAKE_HOST_VER=1.0.0 -DCLI_CMAKE_APPHOST_VER=1.0.0 -DCLI_CMAKE_PKG_RID=ubuntu.14.04-x64 -DCLI_CMAKE_COMMIT_HASH=bd3f818bad84f1296b4ee53f72ab8837b3caac98 -DCLI_CMAKE_PORTABLE_BUILD=1 && make
+cd src/corehost && ./build.sh --configuration Release --arch x64 --commithash ee54d4cbd2b305eadf6f341bdc9d4abccdb50559 --policyver 3.0.0-preview4-27615-73 --fxrver 3.0.0-preview4-27615-73 --apphostver 3.0.0-preview4-27615-73 --hostver 3.0.0-preview4-27615-73 -portable
 %endif
 
 %install
 %if 0%{?rhel} >= 7
 %{?env_options}
 %__mkdir_p %{buildroot}/%{_prefix}/lib/mono/msbuild/Current/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
-cp src/corehost/cli/fxr/libhostfxr.so %{buildroot}/%{_prefix}/lib/mono/msbuild/Current/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
+cp bin/linux-x64.Release/corehost/libhostfxr.so %{buildroot}/%{_prefix}/lib/mono/msbuild/Current/bin/SdkResolvers/Microsoft.DotNet.MSBuildSdkResolver/
 %endif
 
 %files

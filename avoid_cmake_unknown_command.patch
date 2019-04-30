@@ -1,10 +1,10 @@
-diff --git a/src/corehost/cli/fxr/CMakeLists.txt b/src/corehost/cli/fxr/CMakeLists.txt
-index bb87c6a..2a59744 100644
---- a/src/corehost/cli/fxr/CMakeLists.txt
-+++ b/src/corehost/cli/fxr/CMakeLists.txt
-@@ -64,4 +64,4 @@ if (WIN32 AND CLI_CMAKE_PLATFORM_ARCH_ARM)
-     target_link_libraries(hostfxr shell32.lib)
- endif()
+Index: xamarin-pkg-core-setup/src/corehost/cli/fxr/CMakeLists.txt
+===================================================================
+--- xamarin-pkg-core-setup.orig/src/corehost/cli/fxr/CMakeLists.txt
++++ xamarin-pkg-core-setup/src/corehost/cli/fxr/CMakeLists.txt
+@@ -55,4 +55,4 @@ set(HEADERS
+ include(../lib.cmake)
  
--install_library_and_symbols (hostfxr)
-+#install_library_and_symbols (hostfxr)
+ install(TARGETS hostfxr DESTINATION corehost)
+-install_symbols(hostfxr corehost)
++#install_symbols(hostfxr corehost)
