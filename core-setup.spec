@@ -23,7 +23,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 Source0:        core-setup-%{version}.tar.xz
 Patch0:         avoid_cmake_unknown_command.patch
 Patch1:         a-gcc-is-fine-too.patch
-Patch1:         no-hostpolicy.patch
+Patch2:         no-hostpolicy.patch
 %if 0%{?rhel} >= 7
 BuildRequires:  cmake
 BuildRequires:  gcc-c++
