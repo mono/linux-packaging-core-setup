@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" InitialTargets="CheckForBuildTools" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  
+
   <Target Name="CheckForBuildTools">
     <Error Condition="!Exists('$(ToolsDir)')"
            Text="The tools directory [$(ToolsDir)] does not exist. Please run sync in your enlistment to ensure the tools are installed before attempting to build an individual project." />
@@ -13,7 +13,12 @@
 
   <Import Project="$(ToolsDir)/Build.Common.targets" Condition="Exists('$(ToolsDir)Build.Common.targets') and '$(UseLiveBuildTools)' != 'true'" />
 
-  <Target Name="GetLatestCommitHash">
+ <Target Name="BuildCustomTasks">
+    <Exec Command="$(DotnetToolCommand) build $(MSBuildThisFileDirectory)tools-local/tasks/core-setup.tasks.csproj" />
+  </Target>
+
+  <Target Name="GetLatestCommitHash"
+          Condition="'$(LatestCommit)' == ''">
     <!-- Get the latest commit hash -->
     <Exec Command="git rev-parse HEAD 2>&amp;1" StandardOutputImportance="Low" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" ConsoleToMSBuild="true">
       <Output TaskParameter="ConsoleOutput" PropertyName="LatestCommit" />
@@ -25,13 +30,13 @@
     </PropertyGroup>
   </Target>
 
-  <Target Name="GetCommitCount">
-    <Exec Command="git rev-list --count HEAD" 
-          StandardOutputImportance="Low" 
-          IgnoreExitCode="true" 
-          IgnoreStandardErrorWarningFormat="true" 
-          ConsoleToMSBuild="true"
+  <Target Name="GetCommitCount"
           Condition="'$(CommitCount)' == ''">
+    <Exec Command="git rev-list --count HEAD"
+          StandardOutputImportance="Low"
+          IgnoreExitCode="true"
+          IgnoreStandardErrorWarningFormat="true"
+          ConsoleToMSBuild="true">
      <Output TaskParameter="ConsoleOutput" PropertyName="CommitCount" />
      <Output TaskParameter="ExitCode" PropertyName="CommitCountExitCode" />
     </Exec>
@@ -43,7 +48,7 @@
       <BundleDisplayVersion>$(MajorVersion).$(MinorVersion).$(PatchVersion).$(BuildNumberMajor)</BundleDisplayVersion>
     </PropertyGroup>
   </Target>
-  
+
   <!-- Override Target from buildtools -->
   <Target Name="GenerateVersionHeader"
       Inputs="$(MSBuildProjectFile)"
@@ -58,7 +63,7 @@
       <NativeVersionLines Include="#define VER_COMPANYNAME_STR         &quot;Microsoft Corporation&quot;" />
       <NativeVersionLines Include="#endif" />
       <NativeVersionLines Include="#ifndef VER_FILEDESCRIPTION_STR" />
-      <NativeVersionLines Include="#define VER_FILEDESCRIPTION_STR     &quot;$(AssemblyName)&quot;" />
+      <NativeVersionLines Include="#define VER_FILEDESCRIPTION_STR     &quot;$(FileDescription)&quot;" />
       <NativeVersionLines Include="#endif" />
       <NativeVersionLines Include="#ifndef VER_INTERNALNAME_STR" />
       <NativeVersionLines Include="#define VER_INTERNALNAME_STR        VER_FILEDESCRIPTION_STR" />
@@ -67,7 +72,7 @@
       <NativeVersionLines Include="#define VER_ORIGINALFILENAME_STR    VER_FILEDESCRIPTION_STR" />
       <NativeVersionLines Include="#endif" />
       <NativeVersionLines Include="#ifndef VER_PRODUCTNAME_STR" />
-      <NativeVersionLines Include="#define VER_PRODUCTNAME_STR         &quot;Microsoft\xae .NET Core Framework&quot;" />
+      <NativeVersionLines Include="#define VER_PRODUCTNAME_STR         &quot;Microsoft\xae .NET Core&quot;" />
       <NativeVersionLines Include="#endif" />
       <NativeVersionLines Include="#undef VER_PRODUCTVERSION" />
       <NativeVersionLines Include="#define VER_PRODUCTVERSION          $(MajorVersion),$(MinorVersion),$(BuildNumberMajor),$(BuildNumberMinor)" />

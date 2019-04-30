@@ -1,5 +1,6 @@
-// Copyright (c) .NET Foundation and contributors. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 #ifndef __DEPS_ENTRY_H_
 #define __DEPS_ENTRY_H_
@@ -8,6 +9,23 @@
 #include <array>
 #include <vector>
 #include "pal.h"
+#include "version.h"
+
+struct deps_asset_t
+{
+    deps_asset_t() : deps_asset_t(_X(""), _X(""), version_t(), version_t()) { }
+
+    deps_asset_t(const pal::string_t& name, const pal::string_t& relative_path, const version_t& assembly_version, const version_t& file_version)
+        : name(name)
+        , relative_path(get_replaced_char(relative_path, _X('\\'), _X('/'))) // Deps file does not follow spec. It uses '\\', should use '/'
+        , assembly_version(assembly_version)
+        , file_version(file_version) { }
+
+    pal::string_t name;
+    pal::string_t relative_path;
+    version_t assembly_version;
+    version_t file_version;
+};
 
 struct deps_entry_t
 {
@@ -30,11 +48,9 @@ struct deps_entry_t
     pal::string_t library_hash_path;
     pal::string_t runtime_store_manifest_list;
     asset_types asset_type;
-    pal::string_t asset_name;
-    pal::string_t relative_path;
+    deps_asset_t asset;
     bool is_serviceable;
     bool is_rid_specific;
-
 
     // Given a "base" dir, yield the filepath within this directory or relative to this directory based on "look_in_base"
     bool to_path(const pal::string_t& base, bool look_in_base, pal::string_t* str) const;
@@ -47,7 +63,6 @@ struct deps_entry_t
 
     // Given a "base" dir, yield the relative path with package name, version in the package layout.
     bool to_full_path(const pal::string_t& root, pal::string_t* str) const;
-
 };
 
 #endif // __DEPS_ENTRY_H_

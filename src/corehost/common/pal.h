@@ -1,5 +1,6 @@
-// Copyright (c) .NET Foundation and contributors. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 #ifndef PAL_H
 #define PAL_H
@@ -92,7 +93,7 @@
 namespace pal
 {
 #if defined(_WIN32)
-    #ifdef COREHOST_MAKE_DLL
+    #ifdef EXPORT_SHARED_API
         #define SHARED_API extern "C" __declspec(dllexport)
     #else
         #define SHARED_API
@@ -110,15 +111,12 @@ namespace pal
     // typedef std::basic_ifstream<pal::char_t> ifstream_t.
     typedef std::basic_ifstream<char> ifstream_t;
     typedef std::istreambuf_iterator<ifstream_t::char_type> istreambuf_iterator_t;
+    typedef std::basic_istream<char> istream_t;
     typedef HRESULT hresult_t;
     typedef HMODULE dll_t;
     typedef FARPROC proc_t;
 
     inline string_t exe_suffix() { return _X(".exe"); }
-
-    pal::string_t to_string(int value);
-
-    bool getcwd(pal::string_t* recv);
 
     inline int cstrcasecmp(const char* str1, const char* str2) { return ::_stricmp(str1, str2); }
     inline int strcmp(const char_t* str1, const char_t* str2) { return ::wcscmp(str1, str2); }
@@ -126,11 +124,12 @@ namespace pal
     inline int strncmp(const char_t* str1, const char_t* str2, int len) { return ::wcsncmp(str1, str2, len); }
     inline int strncasecmp(const char_t* str1, const char_t* str2, int len) { return ::_wcsnicmp(str1, str2, len); }
 
-    pal::string_t to_lower(const pal::string_t& in);
-
     inline size_t strlen(const char_t* str) { return ::wcslen(str); }
-    inline void err_vprintf(const char_t* format, va_list vl) { ::vfwprintf(stderr, format, vl); ::fputws(_X("\r\n"), stderr); }
-    inline void out_vprintf(const char_t* format, va_list vl) { ::vfwprintf(stdout, format, vl); ::fputws(_X("\r\n"), stdout); }
+    inline FILE * file_open(const pal::string_t& path, const char_t* mode) { return ::_wfopen(path.c_str(), mode); }
+    inline void file_vprintf(FILE* f, const char_t* format, va_list vl) { ::vfwprintf(f, format, vl); ::fputwc(_X('\n'), f); }
+    inline void err_fputs(const char_t* message) { ::fputws(message, stderr); ::fputwc(_X('\n'), stderr); }
+    inline void out_vprintf(const char_t* format, va_list vl) { ::vfwprintf(stdout, format, vl); ::fputwc(_X('\n'), stdout); }
+    inline int str_vprintf(char_t* buffer, size_t count, const char_t* format, va_list vl) { return ::_vsnwprintf(buffer, count, format, vl); }
 
     bool pal_utf8string(const pal::string_t& str, std::vector<char>* out);
     bool utf8_palstring(const std::string& str, pal::string_t* out);
@@ -138,8 +137,8 @@ namespace pal
     bool clr_palstring(const char* cstr, pal::string_t* out);
 
 #else
-    #ifdef COREHOST_MAKE_DLL
-        #define SHARED_API extern "C"
+    #ifdef EXPORT_SHARED_API
+        #define SHARED_API extern "C" __attribute__((__visibility__("default")))
     #else
         #define SHARED_API
     #endif
@@ -160,15 +159,12 @@ namespace pal
     typedef std::stringstream stringstream_t;
     typedef std::basic_ifstream<char> ifstream_t;
     typedef std::istreambuf_iterator<ifstream_t::char_type> istreambuf_iterator_t;
+    typedef std::basic_istream<char> istream_t;
     typedef int hresult_t;
     typedef void* dll_t;
     typedef void* proc_t;
 
     inline string_t exe_suffix() { return _X(""); }
-
-    pal::string_t to_string(int value);
-
-    bool getcwd(pal::string_t* recv);
 
     inline int cstrcasecmp(const char* str1, const char* str2) { return ::strcasecmp(str1, str2); }
     inline int strcmp(const char_t* str1, const char_t* str2) { return ::strcmp(str1, str2); }
@@ -176,11 +172,13 @@ namespace pal
     inline int strncmp(const char_t* str1, const char_t* str2, int len) { return ::strncmp(str1, str2, len); }
     inline int strncasecmp(const char_t* str1, const char_t* str2, int len) { return ::strncasecmp(str1, str2, len); }
 
-    pal::string_t to_lower(const pal::string_t& in);
-
     inline size_t strlen(const char_t* str) { return ::strlen(str); }
-    inline void err_vprintf(const char_t* format, va_list vl) { ::vfprintf(stderr, format, vl); ::fputc('\n', stderr); }
+    inline FILE * file_open(const pal::string_t& path, const char_t* mode) { return fopen(path.c_str(), mode); }
+    inline void file_vprintf(FILE* f, const char_t* format, va_list vl) { ::vfprintf(f, format, vl); ::fputc('\n', f); }
+    inline void err_fputs(const char_t* message) { ::fputs(message, stderr); ::fputc(_X('\n'), stderr); }
     inline void out_vprintf(const char_t* format, va_list vl) { ::vfprintf(stdout, format, vl); ::fputc('\n', stdout); }
+    inline int str_vprintf(char_t* str, size_t size, const char_t* format, va_list vl) { return ::vsnprintf(str, size, format, vl); }
+
     inline bool pal_utf8string(const pal::string_t& str, std::vector<char>* out) { out->assign(str.begin(), str.end()); out->push_back('\0'); return true; }
     inline bool utf8_palstring(const std::string& str, pal::string_t* out) { out->assign(str); return true; }
     inline bool pal_clrstring(const pal::string_t& str, std::vector<char>* out) { return pal_utf8string(str, out); }
@@ -188,6 +186,14 @@ namespace pal
 
 #endif
 
+    pal::string_t to_string(int value);
+    pal::string_t get_timestamp();
+
+    bool getcwd(pal::string_t* recv);
+    pal::string_t to_lower(const pal::string_t& in);
+
+
+    inline void file_flush(FILE *f) { std::fflush(f); }
     inline void err_flush() { std::fflush(stderr); }
     inline void out_flush() { std::fflush(stdout); }
 
@@ -201,18 +207,26 @@ namespace pal
     }
         
     bool touch_file(const pal::string_t& path);
-    bool realpath(string_t* path);
+    bool realpath(string_t* path, bool skip_error_logging = false);
     bool file_exists(const string_t& path);
     inline bool directory_exists(const string_t& path) { return file_exists(path); }
     void readdir(const string_t& path, const string_t& pattern, std::vector<pal::string_t>* list);
     void readdir(const string_t& path, std::vector<pal::string_t>* list);
+    void readdir_onlydirectories(const string_t& path, const string_t& pattern, std::vector<pal::string_t>* list);
+    void readdir_onlydirectories(const string_t& path, std::vector<pal::string_t>* list);
 
     bool get_own_executable_path(string_t* recv);
+    bool get_own_module_path(string_t* recv);
+    bool get_module_path(dll_t mod, string_t* recv);
+    bool get_current_module(dll_t *mod);
     bool getenv(const char_t* name, string_t* recv);
     bool get_default_servicing_directory(string_t* recv);
-    //On Linux, we determine global location by enumerating the location where dotnet is present on path, hence there could be multiple such locations
-    //On Windows there will be only one global location
+    
+    //On Linux, there are no global locations
+    //On Windows there will be up to 2 global locations
     bool get_global_dotnet_dirs(std::vector<pal::string_t>* recv);
+    bool get_dotnet_self_registered_dir(pal::string_t* recv);
+    bool get_default_installation_dir(pal::string_t* recv);
     bool get_default_breadcrumb_store(string_t* recv);
     bool is_path_rooted(const string_t& path);
 
@@ -221,6 +235,10 @@ namespace pal
     bool load_library(const string_t* path, dll_t* dll);
     proc_t get_symbol(dll_t library, const char* name);
     void unload_library(dll_t library);
+
+    bool is_running_in_wow64();
+
+    bool are_paths_equal_with_normalized_casing(const string_t& path1, const string_t& path2);
 }
 
 #endif // PAL_H

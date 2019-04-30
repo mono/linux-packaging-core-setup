@@ -1,5 +1,6 @@
-// Copyright (c) .NET Foundation and contributors. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 #include "pal.h"
 #include "trace.h"
@@ -8,17 +9,44 @@
 #include "runtime_config.h"
 #include <cassert>
 
-runtime_config_t::runtime_config_t(const pal::string_t& path, const pal::string_t& dev_path)
-    : m_patch_roll_fwd(true)
-    , m_prerelease_roll_fwd(false)
-    , m_roll_fwd_on_no_candidate_fx(0)
-    , m_path(path)
-    , m_dev_path(dev_path)
-    , m_portable(false)
+
+// The semantics of applying the runtimeconfig.json values follows, in the following steps from
+// first to last, where last always wins. These steps are also annotated in the code here.
+// 1) Apply the environment settings
+// 2) Apply the values in the current "runtimeOptions" section
+// 3) Apply the values in the referenced "frameworks" section
+// 4) Apply the overrides (from command line or other)
+
+runtime_config_t::runtime_config_t()
+    : m_is_framework_dependent(false)
+    , m_valid(false)
 {
+}
+
+void runtime_config_t::parse(const pal::string_t& path, const pal::string_t& dev_path, const fx_reference_t& fx_ref, const fx_reference_t& override_settings)
+{
+    m_path = path;
+    m_dev_path = dev_path;
+    m_fx_ref = fx_ref;
+    m_fx_overrides = override_settings;
+
+    // Step #1: set the defaults from the environment
+    m_fx_defaults.set_patch_roll_fwd(true);
+
+    roll_fwd_on_no_candidate_fx_option roll_fwd_option = roll_fwd_on_no_candidate_fx_option::minor;
+    pal::string_t env_no_candidate;
+    if (pal::getenv(_X("DOTNET_ROLL_FORWARD_ON_NO_CANDIDATE_FX"), &env_no_candidate))
+    {
+        roll_fwd_option = static_cast<roll_fwd_on_no_candidate_fx_option>(pal::xtoi(env_no_candidate.c_str()));
+    }
+
+    m_fx_defaults.set_roll_fwd_on_no_candidate_fx(roll_fwd_option);
+
+    // Parse the file
     m_valid = ensure_parsed();
+
     trace::verbose(_X("Runtime config [%s] is valid=[%d]"), path.c_str(), m_valid);
-} 
+}
 
 bool runtime_config_t::parse_opts(const json_value& opts)
 {
@@ -30,7 +58,7 @@ bool runtime_config_t::parse_opts(const json_value& opts)
     }
 
     const auto& opts_obj = opts.as_object();
-    
+
     auto properties = opts_obj.find(_X("configProperties"));
     if (properties != opts_obj.end())
     {
@@ -39,7 +67,7 @@ bool runtime_config_t::parse_opts(const json_value& opts)
         {
             m_properties[property.first] = property.second.is_string()
                 ? property.second.as_string()
-                : property.second.to_string();
+                : property.second.serialize();
         }
     }
 
@@ -60,30 +88,18 @@ bool runtime_config_t::parse_opts(const json_value& opts)
         }
     }
 
+    // Step #2: set the defaults from the "runtimeOptions"
     auto patch_roll_fwd = opts_obj.find(_X("applyPatches"));
     if (patch_roll_fwd != opts_obj.end())
     {
-        m_patch_roll_fwd = patch_roll_fwd->second.as_bool();
-    }
-
-    auto prerelease_roll_fwd = opts_obj.find(_X("preReleaseRollForward"));
-    if (prerelease_roll_fwd != opts_obj.end())
-    {
-        m_prerelease_roll_fwd = prerelease_roll_fwd->second.as_bool();
+        m_fx_defaults.set_patch_roll_fwd(patch_roll_fwd->second.as_bool());
     }
 
     auto roll_fwd_on_no_candidate_fx = opts_obj.find(_X("rollForwardOnNoCandidateFx"));
     if (roll_fwd_on_no_candidate_fx != opts_obj.end())
     {
-        m_roll_fwd_on_no_candidate_fx = roll_fwd_on_no_candidate_fx->second.as_integer();
-    }
-    else
-    {
-        pal::string_t env_no_candidate;
-        if (pal::getenv(_X("DOTNET_ROLL_FORWARD_ON_NO_CANDIDATE_FX"), &env_no_candidate))
-        {
-            m_roll_fwd_on_no_candidate_fx = pal::xtoi(env_no_candidate.c_str());
-        }
+        auto val = static_cast<roll_fwd_on_no_candidate_fx_option>(roll_fwd_on_no_candidate_fx->second.as_integer());
+        m_fx_defaults.set_roll_fwd_on_no_candidate_fx(val);
     }
 
     auto tfm = opts_obj.find(_X("tfm"));
@@ -92,17 +108,68 @@ bool runtime_config_t::parse_opts(const json_value& opts)
         m_tfm = tfm->second.as_string();
     }
 
+    // Step #3: read the "framework" and "frameworks" section
+    bool rc = true;
     auto framework =  opts_obj.find(_X("framework"));
-    if (framework == opts_obj.end())
+    if (framework != opts_obj.end())
     {
-        return true;
+        m_is_framework_dependent = true;
+
+        const auto& framework_obj = framework->second.as_object();
+
+        fx_reference_t fx_out;
+        rc = parse_framework(framework_obj, fx_out);
+        if (rc)
+        {
+            m_frameworks.push_back(fx_out);
+        }
     }
 
-    m_portable = true;
+    if (rc)
+    {
+        auto iter = opts_obj.find(_X("frameworks"));
+        if (iter != opts_obj.end())
+        {
+            m_is_framework_dependent = true;
 
-    const auto& fx_obj = framework->second.as_object();
-    m_fx_name = fx_obj.at(_X("name")).as_string();
-    m_fx_ver = fx_obj.at(_X("version")).as_string();
+            const auto& frameworks_obj = iter->second.as_array();
+            rc = read_framework_array(frameworks_obj);
+        }
+    }
+
+    return rc;
+}
+
+bool runtime_config_t::parse_framework(const json_object& fx_obj, fx_reference_t& fx_out)
+{
+    fx_out.apply_settings_from(m_fx_defaults);
+
+    auto fx_name= fx_obj.find(_X("name"));
+    if (fx_name != fx_obj.end())
+    {
+        fx_out.set_fx_name(fx_name->second.as_string());
+    }
+
+    auto fx_ver = fx_obj.find(_X("version"));
+    if (fx_ver != fx_obj.end())
+    {
+        fx_out.set_fx_version(fx_ver->second.as_string());
+    }
+
+    auto patch_roll_fwd = fx_obj.find(_X("applyPatches"));
+    if (patch_roll_fwd != fx_obj.end())
+    {
+        fx_out.set_patch_roll_fwd(patch_roll_fwd->second.as_bool());
+    }
+
+    auto roll_fwd_on_no_candidate_fx = fx_obj.find(_X("rollForwardOnNoCandidateFx"));
+    if (roll_fwd_on_no_candidate_fx != fx_obj.end())
+    {
+        fx_out.set_roll_fwd_on_no_candidate_fx(static_cast<roll_fwd_on_no_candidate_fx_option>(roll_fwd_on_no_candidate_fx->second.as_integer()));
+    }
+
+    fx_out.apply_settings_from(m_fx_overrides);
+
     return true;
 }
 
@@ -113,7 +180,7 @@ bool runtime_config_t::ensure_dev_config_parsed()
     pal::string_t retval;
     if (!pal::file_exists(m_dev_path))
     {
-        // Not existing is not an error.
+        // Not existing is valid.
         return true;
     }
 
@@ -150,6 +217,45 @@ bool runtime_config_t::ensure_dev_config_parsed()
     return true;
 }
 
+bool runtime_config_t::read_framework_array(web::json::array frameworks_json)
+{
+    bool rc = true;
+
+    for (const auto& fx_json : frameworks_json)
+    {
+        const auto& fx_obj = fx_json.as_object();
+
+        fx_reference_t fx_out;
+        rc = parse_framework(fx_obj, fx_out);
+        if (!rc)
+        {
+            break;
+        }
+
+        if (fx_out.get_fx_name().length() == 0)
+        {
+            trace::verbose(_X("No framework name specified."));
+            rc = false;
+            break;
+        }
+
+        if (std::find_if(
+                m_frameworks.begin(),
+                m_frameworks.end(),
+                [&](const fx_reference_t& item) { return fx_out.get_fx_name() == item.get_fx_name(); })
+            != m_frameworks.end())
+        {
+            trace::verbose(_X("Framework %s already specified."), fx_out.get_fx_name().c_str());
+            rc = false;
+            break;
+        }
+
+        m_frameworks.push_back(fx_out);
+    }
+
+    return rc;
+}
+
 bool runtime_config_t::ensure_parsed()
 {
     trace::verbose(_X("Attempting to read runtime config: %s"), m_path.c_str());
@@ -177,6 +283,7 @@ bool runtime_config_t::ensure_parsed()
         trace::verbose(_X("UTF-8 BOM skipped while reading [%s]"), m_path.c_str());
     }
 
+    bool rc = true;
     try
     {
         const auto root = json_value::parse(file);
@@ -184,7 +291,7 @@ bool runtime_config_t::ensure_parsed()
         const auto iter = json.find(_X("runtimeOptions"));
         if (iter != json.end())
         {
-            parse_opts(iter->second);
+            rc = parse_opts(iter->second);
         }
     }
     catch (const std::exception& je)
@@ -194,7 +301,8 @@ bool runtime_config_t::ensure_parsed()
         trace::error(_X("A JSON parsing exception occurred in [%s]: %s"), m_path.c_str(), jes.c_str());
         return false;
     }
-    return true;
+
+    return rc;
 }
 
 const pal::string_t& runtime_config_t::get_tfm() const
@@ -203,39 +311,9 @@ const pal::string_t& runtime_config_t::get_tfm() const
     return m_tfm;
 }
 
-const pal::string_t& runtime_config_t::get_fx_name() const
+bool runtime_config_t::get_is_framework_dependent() const
 {
-    assert(m_valid);
-    return m_fx_name;
-}
-
-const pal::string_t& runtime_config_t::get_fx_version() const
-{
-    assert(m_valid);
-    return m_fx_ver;
-}
-
-bool runtime_config_t::get_patch_roll_fwd() const
-{
-    assert(m_valid);
-    return m_patch_roll_fwd;
-}
-
-bool runtime_config_t::get_prerelease_roll_fwd() const
-{
-    assert(m_valid);
-    return m_prerelease_roll_fwd;
-}
-
-int runtime_config_t::get_roll_fwd_on_no_candidate_fx() const
-{
-    assert(m_valid);
-    return m_roll_fwd_on_no_candidate_fx;
-}
-
-bool runtime_config_t::get_portable() const
-{
-    return m_portable;
+    return m_is_framework_dependent;
 }
 
 const std::list<pal::string_t>& runtime_config_t::get_probe_paths() const
@@ -243,11 +321,25 @@ const std::list<pal::string_t>& runtime_config_t::get_probe_paths() const
     return m_probe_paths;
 }
 
-void runtime_config_t::config_kv(std::vector<pal::string_t>* keys, std::vector<pal::string_t>* values) const
+// Add each property to combined_properties unless the property already exists.
+// The effect is the first value wins, which would typically be the app's value.
+void runtime_config_t::combine_properties(std::unordered_map<pal::string_t, pal::string_t>& combined_properties) const
 {
     for (const auto& kv : m_properties)
     {
-        keys->push_back(kv.first);
-        values->push_back(kv.second);
+        if (combined_properties.find(kv.first) == combined_properties.end())
+        {
+            combined_properties[kv.first] = kv.second;
+        }
     }
+}
+
+void runtime_config_t::set_fx_version(pal::string_t version)
+{
+    assert(m_frameworks.size() > 0);
+
+    m_frameworks[0].set_fx_version(version);
+    m_frameworks[0].set_patch_roll_fwd(false);
+    m_frameworks[0].set_roll_fwd_on_no_candidate_fx(roll_fwd_on_no_candidate_fx_option::disabled);
+    m_frameworks[0].set_use_exact_version(true);
 }

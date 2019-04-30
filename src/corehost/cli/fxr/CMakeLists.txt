@@ -1,67 +1,58 @@
-# Copyright (c) .NET Foundation and contributors. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Licensed to the .NET Foundation under one or more agreements.
+# The .NET Foundation licenses this file to you under the MIT license.
+# See the LICENSE file in the project root for more information.
 
 cmake_minimum_required (VERSION 2.6)
 project(hostfxr)
 
-if(WIN32)
-    add_compile_options($<$<CONFIG:RelWithDebInfo>:/MT>)
-    add_compile_options($<$<CONFIG:Release>:/MT>)
-    add_compile_options($<$<CONFIG:Debug>:/MTd>)
-else()
-    add_compile_options(-fPIC)
-endif()
-
-include(../setup.cmake)
+set(DOTNET_PROJECT_NAME "hostfxr")
 
 # Include directories
-if(WIN32)
-    include_directories("${CLI_CMAKE_RESOURCE_DIR}/hostfxr")
-endif()
-include_directories(./)
-include_directories(../)
-include_directories(../../)
-include_directories(../../common)
 include_directories(../json/casablanca/include)
 
 # CMake does not recommend using globbing since it messes with the freshness checks
 set(SOURCES
-    ../../common/trace.cpp
-    ../../common/utils.cpp
-    ../libhost.cpp
     ../deps_format.cpp
     ../deps_entry.cpp
+    ../host_startup_info.cpp
     ../runtime_config.cpp
     ../json/casablanca/src/json/json.cpp
     ../json/casablanca/src/json/json_parsing.cpp
     ../json/casablanca/src/json/json_serialization.cpp
     ../json/casablanca/src/utilities/asyncrt_utils.cpp
+    ../fx_definition.cpp
+    ../fx_reference.cpp
+    ../version.cpp
+    ./corehost_init.cpp
     ./hostfxr.cpp
     ./fx_ver.cpp
-    ./fx_muxer.cpp)
+    ./fx_muxer.cpp
+	./fx_resolver.cpp
+    ./fx_resolver.messages.cpp
+    ./framework_info.cpp
+    ./sdk_info.cpp
+    ./sdk_resolver.cpp
+)
 
+set(HEADERS
+    ../deps_format.h
+    ../deps_entry.h
+    ../host_startup_info.h
+    ../runtime_config.h
+    ../json/casablanca/include/cpprest/json.h
+    ../fx_definition.h
+    ../fx_reference.h
+    ../version.h
+    ./corehost_init.h
+    ./fx_ver.h
+    ./fx_muxer.h
+    ./fx_resolver.h
+    ./framework_info.h
+    ./sdk_info.h
+    ./sdk_resolver.h
+)
 
-if(WIN32)
-    list(APPEND SOURCES
-        ../../common/pal.windows.cpp
-        ../../common/longfile.windows.cpp)
-else()
-    list(APPEND SOURCES ../../common/pal.unix.cpp)
-endif()
+include(../lib.cmake)
 
-add_definitions(-D_NO_ASYNCRTIMP)
-add_definitions(-D_NO_PPLXIMP)
-add_definitions(-DCOREHOST_MAKE_DLL=1)
-
-set(RESOURCES)
-if(WIN32)
-    list(APPEND RESOURCES ../native.rc)
-endif()
-add_library(hostfxr SHARED ${SOURCES} ${RESOURCES})
-
-# Specify the import library to link against for Arm32 build since the default set is minimal
-if (WIN32 AND CLI_CMAKE_PLATFORM_ARCH_ARM)
-    target_link_libraries(hostfxr shell32.lib)
-endif()
-
-install_library_and_symbols (hostfxr)
+install(TARGETS hostfxr DESTINATION corehost)
+install_symbols(hostfxr corehost)

@@ -1,0 +1,154 @@
+parameters:
+  DependsOn: {}
+  _PublishType: {}
+jobs:
+  - job: Finalize_Publish
+    displayName: Finalize_Publish
+    # Run after all dependent legs are executed
+    dependsOn: ${{ parameters.DependsOn }}
+    pool:
+      # Use a hosted pool when possible.
+      ${{ if eq(variables['System.TeamProject'], 'public') }}:
+        name: Hosted VS2017
+      ${{ if ne(variables['System.TeamProject'], 'public') }}:
+        name: NetCoreInternal-Int-Pool
+        queue: buildpool.windows.10.amd64.vs2017
+    # Double the default timeout. Publishing is subject to huge delays due to contention on the dotnet-core blob feed
+    timeoutInMinutes: 120
+    workspace:
+      clean: all
+    variables:
+      _PublishType: ${{ parameters._PublishType}}
+
+      # Disable MSBuild node reuse in case this build is running on a persistent agent.
+      # Use environment variable rather than /nr:false to make sure internal Execs that run MSBuild
+      # commands also disable node reuse.
+      MSBUILDDISABLENODEREUSE: 1
+    steps:
+
+    # Initialize tooling
+    - script: build.cmd
+        -- /t:BuildTraversalBuildDependencies
+      displayName: Initialize tooling
+      condition: succeeded()
+
+    - task: MicroBuildSigningPlugin@2
+      displayName: Install MicroBuild plugin for Signing
+      inputs:
+        signType: $(SignType)
+        zipSources: false
+        feedSource: https://dnceng.pkgs.visualstudio.com/_packaging/MicroBuildToolset/nuget/v3/index.json
+      continueOnError: false
+      condition: and(succeeded(), in(variables['SignType'], 'real', 'test'))
+
+    - task: MSBuild@1
+      displayName: Publish (no PublishType)
+      inputs: 
+        solution: $(Build.SourcesDirectory)\publish\publish.proj
+        platform: x64
+        configuration: Release
+        msbuildVersion: 15.0
+        msbuildArchitecture: x64
+        msbuildArguments: '/p:Finalize=true 
+        /p:OfficialPublish=true 
+        /p:PublishType=nopublishtype 
+        /p:SignType=$(SignType) 
+        /p:StabilizePackageVersion=$(IsStable) 
+        /p:TargetArchitecture=x64
+        $(_BlobFeedArgs) 
+        $(_CommonPublishArgs) 
+        $(_NugetFeedArgs) 
+        $(_SymbolServerArgs) 
+        /bl:$(Build.SourcesDirectory)\finalizepublish.binlog
+        /nr:false'
+      condition: and(succeeded(), eq(variables._PublishType, 'nopublishtype'))
+
+    - task: CopyFiles@2
+      displayName: Copy Files to $(Build.StagingDirectory)\BuildLogs
+      inputs:
+        SourceFolder: '$(Build.SourcesDirectory)'
+        Contents: |
+          *.log
+          *.binlog
+        TargetFolder: '$(Build.StagingDirectory)\BuildLogs'
+      continueOnError: true
+      condition: succeededOrFailed()
+
+    - task: CopyFiles@2
+      displayName: Copy Manifest file
+      inputs:
+        SourceFolder: '$(Build.SourcesDirectory)/artifacts/log/AssetManifest'
+        TargetFolder: '$(Build.StagingDirectory)/AssetManifests'
+      continueOnError: true
+      condition: succeededOrFailed()
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Artifact BuildLogs
+      inputs:
+        PathtoPublish: '$(Build.StagingDirectory)\BuildLogs'
+        ArtifactName: Finalize_Publish
+      condition: succeededOrFailed()
+
+    - task: PublishBuildArtifacts@1
+      displayName: Push Asset Manifests
+      inputs:
+        PathtoPublish: '$(Build.StagingDirectory)/AssetManifests'
+        PublishLocation: Container
+        ArtifactName: AssetManifests
+      continueOnError: true
+      condition: succeededOrFailed()
+
+  - job: Finalize_Publish_Versions
+    displayName: Finalize_Publish_Versions
+    dependsOn: 
+    - Finalize_Publish
+    pool:
+      name: Hosted VS2017
+    steps:
+    # Initialize tooling
+    - script: build.cmd -- /t:BuildTraversalBuildDependencies
+      displayName: Initialize tooling
+
+    - powershell: |
+        $prefix = "refs/heads/"
+        $branch = "$(Build.SourceBranch)"
+        $branchName = $branch
+        if ($branchName.StartsWith($prefix))
+        {
+          $branchName = $branchName.Substring($prefix.Length)
+        }
+        Write-Host "For Build.SourceBranch $branch, FullBranchName is $branchName"
+        Write-Host "##vso[task.setvariable variable=FullBranchName;]$branchName"
+      displayName: Find true SourceBranchName
+
+    - task: MSBuild@1
+      displayName: Publish (versions)
+      inputs: 
+        solution: $(Build.SourcesDirectory)\publish\publish-type.proj
+        platform: x64
+        configuration: Release
+        msbuildVersion: 15.0
+        msbuildArchitecture: x64
+        msbuildArguments: >-
+          /p:PublishType=versions
+          $(_DotNetVersionsArgs)
+          $(_CommonPublishArgs)
+          /bl:$(Build.SourcesDirectory)\publishversions.binlog
+
+    - task: CopyFiles@2
+      displayName: Copy Files to $(Build.StagingDirectory)\BuildLogs
+      inputs:
+        SourceFolder: '$(Build.SourcesDirectory)'
+        Contents: |
+          *.log
+          *.binlog
+        TargetFolder: '$(Build.StagingDirectory)\BuildLogs'
+      continueOnError: true
+      condition: succeededOrFailed()
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Artifact BuildLogs
+      inputs:
+        PathtoPublish: '$(Build.StagingDirectory)\BuildLogs'
+        ArtifactName: Finalize_Publish_Versions
+      condition: succeededOrFailed()

@@ -1,5 +1,6 @@
-// Copyright (c) .NET Foundation and contributors. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 #ifndef __ERROR_CODES_H__
 #define __ERROR_CODES_H__
@@ -10,7 +11,7 @@ enum StatusCode
     CoreHostLibLoadFailure      = 0x80008082,
     CoreHostLibMissingFailure   = 0x80008083,
     CoreHostEntryPointFailure   = 0x80008084,
-    CoreHostCurExeFindFailure   = 0x80008085,
+    CoreHostCurHostFindFailure  = 0x80008085,
     CoreHostResolveModeFailure  = 0x80008086,
     CoreClrResolveFailure       = 0x80008087,
     CoreClrBindFailure          = 0x80008088,
@@ -27,5 +28,13 @@ enum StatusCode
     InvalidConfigFile           = 0x80008093,
     AppArgNotRunnable           = 0x80008094,
     AppHostExeNotBoundFailure   = 0x80008095,
+    FrameworkMissingFailure     = 0x80008096,
+    HostApiFailed               = 0x80008097,
+    HostApiBufferTooSmall       = 0x80008098,
+    LibHostUnknownCommand       = 0x80008099,
+    LibHostAppRootFindFailure   = 0x8000809a,
+    SdkResolverResolveFailure   = 0x8000809b,
+    FrameworkCompatFailure      = 0x8000809c,
+    FrameworkCompatRetry        = 0x8000809d,
 };
 #endif // __ERROR_CODES_H__

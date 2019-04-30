@@ -1,39 +1,21 @@
-using Microsoft.DotNet.Cli.Build;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.DotNet.Cli.Build.Framework;
 
 namespace Microsoft.DotNet.CoreSetup.Test
 {
     public class RepoDirectoriesProvider
     {
-        private string _repoRoot;
-        private string _artifacts;
-        private string _hostArtifacts;
-        private string _builtDotnet;
-        private string _nugetPackages;
-        private string _corehostPackages;
-        private string _dotnetSDK;
-
-        private string _targetRID;
-        private string _buildRID;
-        private string _buildArchitecture;
-        private string _mnaVersion;
-
-        public string BuildRID => _buildRID;
-        public string BuildArchitecture => _buildArchitecture;
-        public string TargetRID => _targetRID;
-        public string MicrosoftNETCoreAppVersion => _mnaVersion;
-        public string RepoRoot => _repoRoot;
-        public string Artifacts => _artifacts;
-        public string HostArtifacts => _hostArtifacts;
-        public string BuiltDotnet => _builtDotnet;
-        public string NugetPackages => _nugetPackages;
-        public string CorehostPackages => _corehostPackages;
-        public string DotnetSDK => _dotnetSDK;
+        public string BuildRID { get; }
+        public string BuildArchitecture { get; }
+        public string TargetRID { get; }
+        public string MicrosoftNETCoreAppVersion { get; }
+        public string RepoRoot { get; }
+        public string Artifacts { get; }
+        public string HostArtifacts { get; }
+        public string BuiltDotnet { get; }
+        public string NugetPackages { get; }
+        public string CorehostPackages { get; }
+        public string DotnetSDK { get; }
 
         public RepoDirectoriesProvider(
             string repoRoot = null,
@@ -41,35 +23,57 @@ namespace Microsoft.DotNet.CoreSetup.Test
             string builtDotnet = null,
             string nugetPackages = null,
             string corehostPackages = null,
-            string dotnetSdk = null)
+            string dotnetSdk = null,
+            string microsoftNETCoreAppVersion = null)
         {
-            _repoRoot = repoRoot ?? Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.Parent.Parent.Parent.FullName;
+            RepoRoot = repoRoot ?? GetRepoRootDirectory();
 
-            string baseArtifactsFolder = artifacts ?? Path.Combine(_repoRoot, "Bin");
-            
-            _targetRID = Environment.GetEnvironmentVariable("TEST_TARGETRID");
-            _buildRID = Environment.GetEnvironmentVariable("BUILDRID");
-            _buildArchitecture = Environment.GetEnvironmentVariable("BUILD_ARCHITECTURE");
-            _mnaVersion = Environment.GetEnvironmentVariable("MNA_VERSION");
+            string baseArtifactsFolder = artifacts ?? Path.Combine(RepoRoot, "bin");
 
-            _dotnetSDK = dotnetSdk ?? Environment.GetEnvironmentVariable("DOTNET_SDK_PATH");
+            TargetRID = Environment.GetEnvironmentVariable("TEST_TARGETRID");
+            BuildRID = Environment.GetEnvironmentVariable("BUILDRID");
+            BuildArchitecture = Environment.GetEnvironmentVariable("BUILD_ARCHITECTURE");
+            MicrosoftNETCoreAppVersion = microsoftNETCoreAppVersion ?? Environment.GetEnvironmentVariable("MNA_VERSION");
 
-            if (!Directory.Exists(_dotnetSDK))
+            string configuration = Environment.GetEnvironmentVariable("BUILD_CONFIGURATION");
+            string osPlatformConfig = $"{BuildRID}.{configuration}";
+
+            DotnetSDK = dotnetSdk ?? Environment.GetEnvironmentVariable("DOTNET_SDK_PATH");
+
+            if (!Directory.Exists(DotnetSDK))
             {
                 throw new InvalidOperationException("ERROR: Test SDK folder not found.");
             }
 
-            _artifacts = Path.Combine(baseArtifactsFolder, _buildRID+".Debug");
-            if(!Directory.Exists(_artifacts))
-                _artifacts = Path.Combine(baseArtifactsFolder, _buildRID+".Release");
-            _hostArtifacts = artifacts ?? Path.Combine(_artifacts, "corehost");
+            Artifacts = Path.Combine(baseArtifactsFolder, osPlatformConfig);
+            HostArtifacts = artifacts ?? Path.Combine(Artifacts, "corehost");
 
-            _nugetPackages = nugetPackages ?? Path.Combine(_repoRoot, "packages");
+            NugetPackages = nugetPackages ?? Path.Combine(RepoRoot, "packages");
 
-            _corehostPackages = corehostPackages ?? Path.Combine(_artifacts, "corehost");
-            _builtDotnet = builtDotnet ?? Path.Combine(baseArtifactsFolder, "obj", _buildRID+".Debug", "sharedFrameworkPublish");
-            if(!Directory.Exists(_builtDotnet))
-                _builtDotnet = builtDotnet ?? Path.Combine(baseArtifactsFolder, "obj", _buildRID+".Release", "sharedFrameworkPublish");
+            CorehostPackages = corehostPackages ?? Path.Combine(Artifacts, "corehost");
+            BuiltDotnet = builtDotnet ?? Path.Combine(baseArtifactsFolder, "obj", osPlatformConfig, "sharedFrameworkPublish");
+        }
+
+        private static string GetRepoRootDirectory()
+        {
+            string currentDirectory = Directory.GetCurrentDirectory();
+
+            while (currentDirectory != null)
+            {
+                string gitDirOrFile = Path.Combine(currentDirectory, ".git");
+                if (Directory.Exists(gitDirOrFile) || File.Exists(gitDirOrFile))
+                {
+                    break;
+                }
+                currentDirectory = Directory.GetParent(currentDirectory)?.FullName;
+            }
+
+            if (currentDirectory == null)
+            {
+                throw new Exception("Cannot find the git repository root");
+            }
+
+            return currentDirectory;
         }
     }
 }

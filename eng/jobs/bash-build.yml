@@ -1,0 +1,201 @@
+parameters:
+  additionalMSBuildArgs: ''
+  additionalRunArgs: ''
+  crossBuild: false
+  disableCrossgen: false
+  displayName: null
+  dockerImage: null
+  osGroup: Linux
+  packageDistroList: null
+  skipTests: $(SkipTests)
+  strategy:
+    matrix: 
+      debug:
+        _BuildConfig: Debug
+        _PublishType: none
+      release:
+        _BuildConfig: Release
+        _PublishType: blob
+  targetArchitecture: x64
+jobs:
+  - job: ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }}
+    pool:
+      ${{ if and(eq(parameters.displayName, 'Build_FreeBSD_x64'), ne(variables['System.TeamProject'], 'public')) }}:
+        name: dnceng-freebsd-internal
+      ${{ if ne(parameters.displayName, 'Build_FreeBSD_x64') }}:
+        ${{ if eq(variables['System.TeamProject'], 'public') }}:
+          name: NetCorePublic-Int-Pool
+          queue: buildpool.ubuntu.1604.amd64.open
+        ${{ if ne(variables['System.TeamProject'], 'public') }}:
+          name: NetCoreInternal-Int-Pool
+          queue: buildpool.ubuntu.1604.amd64
+    strategy: ${{ parameters.strategy }}
+    variables:
+
+      ${{ if ne(parameters.displayName, 'Build_FreeBSD_x64')}}:
+          RunArguments: docker run --privileged --rm
+            -v "$(Build.SourcesDirectory):/root/coresetup"
+            -w="/root/coresetup"
+            ${{ parameters.additionalRunArgs }}
+            ${{ parameters.dockerImage }}
+      
+      ${{ if eq(parameters.displayName, 'Build_FreeBSD_x64')}}:
+          RunArguments: export DotNetBootstrapCliTarPath=/dotnet-sdk-freebsd-x64.tar &&
+
+      BuildArguments: -OfficialBuildId=$(OfficialBuildId)
+        -ConfigurationGroup=$(_BuildConfig)
+        -CrossBuild=${{ parameters.crossBuild }}
+        -DisableCrossgen=${{ parameters.disableCrossgen }}
+        -PortableBuild=${{ parameters.portableBuild }}
+        -strip-symbols
+        -SkipTests=${{ parameters.skipTests }}
+        -TargetArchitecture=${{ parameters.targetArchitecture }}
+        -- /p:StabilizePackageVersion=$(IsStable)
+        /nr:false
+        /bl:msbuild.binlog
+        ${{ parameters.additionalMSBuildArgs }}
+
+      PublishArguments: /p:PublishType=$(_PublishType)
+        /p:ConfigurationGroup=$(_BuildConfig)
+        /p:OSGroup=${{ parameters.osGroup }}
+        /p:PortableBuild=${{ parameters.portableBuild }}
+        /p:StabilizePackageVersion=$(IsStable)
+        /p:TargetArchitecture=${{ parameters.targetArchitecture }}
+        /nr:false
+        /bl:msbuild.publish.binlog
+         ${{ parameters.additionalMSBuildArgs }}
+
+      CommonMSBuildArgs: /p:ConfigurationGroup=$(_BuildConfig)
+        /p:OfficialBuildId=$(OfficialBuildId)
+        /p:OSGroup=${{ parameters.osGroup }}
+        /p:PortableBuild=false
+        /p:StabilizePackageVersion=$(IsStable)
+        /p:TargetArchitecture=${{ parameters.targetArchitecture }}
+        /nr:false
+
+      # Tell the build to package up the bits from the portable build.
+      PackagePortableBitsArgs: >-
+        /p:SharedFrameworkPublishDir=/root/sharedFrameworkPublish/
+        /p:InstallerSourceOSPlatformConfig=linux-x64.$(_BuildConfig)
+
+      MSBuildScript: /root/coresetup/Tools/msbuild.sh
+      DockerRunMSBuild: >-
+        docker run
+        -v $(Build.SourcesDirectory):/root/coresetup
+        -v $(Build.StagingDirectory)/sharedFrameworkPublish/:/root/sharedFrameworkPublish/
+        -w=/root/coresetup
+
+      # Disable MSBuild node reuse in case this build is running on a persistent agent.
+      # Use environment variable rather than /nr:false to make sure internal Execs that run MSBuild
+      # commands also disable node reuse.
+      MSBUILDDISABLENODEREUSE: 1
+    steps:
+
+    # Builds don't set user ID, so files might be owned by root and unable to be cleaned up by AzDO.
+    # Clean up the build dirs ourselves in another Docker container to avoid failures.
+    # Using hosted agents is tracked by https://github.com/dotnet/core-setup/issues/4997
+    - script: |
+        set -x
+        docker run --rm \
+          -v "$(Agent.BuildDirectory):/root/build" \
+          -w /root/build \
+          ${{ parameters.dockerImage }} \
+          bash -c '
+            rm -v -rf a b
+            cd s
+            git clean -xdf'
+      displayName: Clean up old artifacts owned by root
+
+    # Build binary and nuget packages
+    - script: |
+        set -x
+        df -h
+        $(RunArguments) ./build.sh $(BuildArguments)
+      displayName: Build
+
+    # Publish only if internal and not PR 
+    - ${{ if and(ne(variables['System.TeamProject'], 'public'), notin(variables['Build.Reason'], 'PullRequest')) }}:
+      - script: |
+          set -x
+          df -h
+          $(RunArguments) \
+            ./Tools/msbuild.sh \
+            ./publish/publish.proj \
+            $(PublishArguments) \
+            $(_CommonPublishArgs)
+        displayName: Publish
+        condition: and(succeeded(), eq(variables._BuildConfig, 'Release'))
+
+    # Only for glibc leg, here we produce RPMs and Debs
+    - ${{ if eq(parameters.displayName, 'Build_Linux_x64_glibc')}}:
+      - task: CopyFiles@2
+        displayName: 'Copy built Portable linux-x64 binaries to staging directory'
+        inputs:
+          SourceFolder: '$(Build.SourcesDirectory)/bin/obj/linux-x64.$(_BuildConfig)/sharedFrameworkPublish'
+          TargetFolder: '$(Build.StagingDirectory)/sharedFrameworkPublish'
+
+      - ${{ each packageBuild in parameters.packageDistroList }}:
+        # This leg's RID matches the build image. Build its distro-dependent packages, as well as
+        # the distro-independent installers. (There's no particular reason to build the distro-
+        # independent installers on this leg, but we need to do it somewhere.)
+        - template: steps/build-linux-package.yml
+          parameters:
+            buildTraversalBuildDependencies: true
+            distroRid: ${{ packageBuild.imageRid }}
+            image: ${{ packageBuild.image }}
+            packageStepDescription: Runtime Deps, Runtime, Framework Packs installers
+
+        - ${{ each rid in packageBuild.rids }}:
+          # Build distro-dependent packages.
+          - template: steps/build-linux-package.yml
+            parameters:
+              distroRid: ${{ rid }}
+              image: ${{ packageBuild.image }}
+              outputRidArg: /p:OutputRid=${{ rid }}-${{ parameters.targetArchitecture }}
+              packageStepDescription: Runtime Deps installers
+              packagingArgs: /p:BuildDistroIndependentInstallers=false
+
+    # Files may be owned by root because builds don't set user ID. The next AzDO step runs 'find' in
+    # the source tree, which fails due to permissions in the 'NetCore*-Int-Pool' queues. This step
+    # prevents the failure by using chown to clean up our source tree.
+    - script: |
+        set -x
+        docker run --rm \
+          -v "$(Agent.BuildDirectory):/root/build" \
+          -w /root/build \
+          ${{ parameters.dockerImage }} \
+          bash -c "chown -R $(id -u):$(id -g) *"
+      displayName: Update file ownership from root to build agent account
+      continueOnError: true
+      condition: succeededOrFailed()
+
+    - task: CopyFiles@2
+      displayName: Copy logs to stage
+      inputs:
+        SourceFolder: '$(Build.SourcesDirectory)'
+        Contents: |
+          *.log
+          *.binlog
+        TargetFolder: '$(Build.StagingDirectory)\BuildLogs'
+      continueOnError: true
+      condition: succeededOrFailed()
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Artifact BuildLogs
+      inputs:
+        PathtoPublish: '$(Build.StagingDirectory)\BuildLogs'
+        ArtifactName: ${{ parameters.displayName }}-$(_BuildConfig)
+      continueOnError: true
+      condition: succeededOrFailed()
+
+    - script: df -h
+      displayName: Check space (df -h)
+      condition: always()
+      continueOnError: true
+
+    # Force clean up machine in case any docker images are left behind
+    - ${{ if ne(parameters.displayName, 'Build_FreeBSD_x64')}}:
+      - script: docker system prune -af && df -h
+        displayName: Run Docker clean up
+        condition: succeededOrFailed()
