@@ -1,3 +1,17 @@
+core-setup (3.0.0.2019.04.16.02.13-0xamarin2) preview; urgency=medium
+
+  [ Xamarin Public Jenkins (auto-signing) ]
+  * Packaging bugfix:
+
+  [ Ubuntu ]
+  * [051b3ac] Allow building with gcc, not clang [fbbcbe0] Refreshed
+    patch [a870c7f] Merge branch 'master' of github.com:mono/linux-
+    packaging-core-setup [5fa7a81] New build rules [8f1e80c] Delete
+    obsolete patches [61b6357] Get rid of logic for ancient GCC, we only
+    have modern GCC now
+
+ -- Xamarin Public Jenkins (auto-signing) <releng@xamarin.com>  Tue, 30 Apr 2019 19:45:19 +0000
+
 core-setup (3.0.0.2019.04.16.02.13-0xamarin1) preview; urgency=medium
 
   * New release - core-setup-3.0.0.2019.04.16.02.13.tar.xz
