@@ -3,25 +3,35 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json;
 using FluentAssertions;
 using Xunit;
-using System.Diagnostics;
 
 namespace Microsoft.Extensions.DependencyModel.Tests
 {
     public class DependencyContextJsonReaderTest
     {
-        private DependencyContext Read(string text)
+        // Same as the default for StreamWriter
+        private static readonly Encoding s_utf8NoPreamble =
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+        private DependencyContext Read(string text, bool withPreamble = false)
         {
-            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(text)))
+            using (var stream = new MemoryStream(Encoding.UTF8.GetMaxByteCount(text.Length)))
+            using (var writer = new StreamWriter(stream, withPreamble ? Encoding.UTF8 : s_utf8NoPreamble))
             {
+                writer.Write(text);
+                writer.Flush();
+                stream.Seek(0, SeekOrigin.Begin);
+
                 return new DependencyContextJsonReader().Read(stream);
             }
         }
 
-        [Fact]
-        public void ReadsRuntimeTargetInfo()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ReadsRuntimeTargetInfo(bool withPreamble)
         {
             var context = Read(
 @"{
@@ -30,13 +40,36 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         ""signature"":""target-signature""
     },
     ""targets"": {
-        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {},
+        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {}
     }
-}");
+}",
+                withPreamble);
+
             context.Target.IsPortable.Should().BeFalse();
             context.Target.Framework.Should().Be(".NETCoreApp,Version=v1.0");
             context.Target.Runtime.Should().Be("osx.10.10-x64");
             context.Target.RuntimeSignature.Should().Be("target-signature");
+        }
+
+        [Fact]
+        public void ReadsRuntimeTargetInfoWithCommentsIsInvalid()
+        {
+            var exception = Assert.Throws<JsonReaderException>(() => Read(
+@"{
+    ""runtimeTarget"": {
+        ""name"":"".NETCoreApp,Version=v1.0/osx.10.10-x64"",
+        ""signature"":""target-signature""
+    },
+    ""targets"": {
+        // Ignore comments
+        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {}
+        /*
+         * Ignore multi-line comments
+        */
+    }
+}"));
+
+            Assert.Equal("'/' is invalid after a value. Expected either ',', '}', or ']'. LineNumber: 6 | BytePositionInLine: 8.", exception.Message);
         }
 
         [Fact]
@@ -51,7 +84,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         ""signature"":""target-signature""
     },
     ""targets"": {
-        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {},
+        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {}
     }
 }");
             context.Target.IsPortable.Should().BeFalse();
@@ -63,7 +96,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         [Fact]
         public void GroupsRuntimeAssets()
         {
-            var context = Read(@"
+            string json = @"
  {
      ""targets"": {
          "".NETStandard,Version=v1.5"": {
@@ -83,16 +116,60 @@ namespace Microsoft.Extensions.DependencyModel.Tests
              ""type"": ""package"",
              ""serviceable"": false,
              ""sha512"": ""HASH-System.Banana""
-         },
+         }
      }
- }");
+ }";
+
+            ReadGroupsRuntimeAssets(json);
+        }
+
+        [Fact]
+        public void GroupsRuntimeAssetsWithAssemblyVersions()
+        {
+            string json = @"
+ {
+     ""targets"": {
+         "".NETStandard,Version=v1.5"": {
+             ""System.Banana/1.0.0"": {
+                 ""runtimeTargets"": {
+                     ""runtimes/unix/Banana.dll"": { ""rid"": ""unix"", ""assetType"": ""runtime"", ""assemblyVersion"": ""1.2.3"", ""fileVersion"": ""4.5.6"" },
+                     ""runtimes/win7/Banana.dll"": { ""rid"": ""win7"",  ""assetType"": ""runtime"", ""fileVersion"": ""1.2.3""},
+
+                     ""runtimes/native/win7/Apple.dll"": { ""rid"": ""win7"",  ""assetType"": ""native"" },
+                     ""runtimes/native/unix/libapple.so"": { ""rid"": ""unix"",  ""assetType"": ""native"" }
+                 }
+             }
+         }
+     },
+     ""libraries"": {
+         ""System.Banana/1.0.0"": {
+             ""type"": ""package"",
+             ""serviceable"": false,
+             ""sha512"": ""HASH-System.Banana""
+         }
+     }
+ }";
+
+            RuntimeLibrary runtimeLib = ReadGroupsRuntimeAssets(json);
+            runtimeLib.RuntimeAssemblyGroups.GetRuntimeFileAssets("unix").Single().AssemblyVersion.Should().Be("1.2.3");
+            runtimeLib.RuntimeAssemblyGroups.GetRuntimeFileAssets("unix").Single().FileVersion.Should().Be("4.5.6");
+            runtimeLib.RuntimeAssemblyGroups.GetRuntimeFileAssets("win7").Single().AssemblyVersion.Should().BeNull();
+            runtimeLib.RuntimeAssemblyGroups.GetRuntimeFileAssets("win7").Single().FileVersion.Should().Be("1.2.3");
+        }
+
+        private RuntimeLibrary ReadGroupsRuntimeAssets(string json)
+        {
+            var context = Read(json);
+
             context.RuntimeLibraries.Should().HaveCount(1);
-            var runtimeLib = context.RuntimeLibraries.Single();
+            RuntimeLibrary runtimeLib = context.RuntimeLibraries.Single();
             runtimeLib.RuntimeAssemblyGroups.Should().HaveCount(2);
             runtimeLib.RuntimeAssemblyGroups.All(g => g.AssetPaths.Count == 1).Should().BeTrue();
 
             runtimeLib.NativeLibraryGroups.Should().HaveCount(2);
             runtimeLib.NativeLibraryGroups.All(g => g.AssetPaths.Count == 1).Should().BeTrue();
+
+            return runtimeLib;
         }
 
         [Fact]
@@ -154,7 +231,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             var context = Read(
 @"{
     ""targets"": {
-        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {},
+        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {}
     },
     ""runtimes"": {
         ""osx.10.10-x64"": [ ],
@@ -207,7 +284,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""sha512"": ""HASH-System.Banana"",
             ""path"": ""PackagePath"",
             ""hashPath"": ""PachageHashPath""
-        },
+        }
     }
 }");
             context.CompileLibraries.Should().HaveCount(2);
@@ -304,7 +381,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""sha512"": ""HASH-System.Banana"",
             ""path"": null,
             ""hashPath"": null
-        },
+        }
     }
 }");
             context.CompileLibraries.Should().HaveCount(1);
@@ -341,7 +418,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""type"": ""package"",
             ""serviceable"": false,
             ""sha512"": ""HASH-System.Banana""
-        },
+        }
     }
 }");
             context.CompileLibraries.Should().HaveCount(1);
@@ -390,7 +467,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""type"": ""package"",
             ""serviceable"": false,
             ""sha512"": ""HASH-System.Banana""
-        },
+        }
     }
 }");
             context.CompileLibraries.Should().HaveCount(2);
@@ -402,7 +479,18 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         [Fact]
         public void ReadsRuntimeLibrariesWithSubtargetsFromMainTargetForPortable()
         {
-            var context = Read(
+            ReadsRuntimeLibrariesWithSubtargetsFromMainTargetForPortable(false);
+        }
+
+        [Fact]
+        public void ReadsRuntimeLibrariesWithSubtargetsFromMainTargetForPortableWithAssemblyVersions()
+        {
+            ReadsRuntimeLibrariesWithSubtargetsFromMainTargetForPortable(true);
+        }
+
+        private void ReadsRuntimeLibrariesWithSubtargetsFromMainTargetForPortable(bool useAssemblyVersions)
+        {
+            string json =
 @"{
     ""runtimeTarget"": {
         ""name"": "".NETCoreApp,Version=v1.0""
@@ -422,8 +510,22 @@ namespace Microsoft.Extensions.DependencyModel.Tests
                     ""System.Foo"": ""1.0.0""
                 },
                 ""runtime"": {
-                    ""lib/dotnet5.4/System.Banana.dll"": { }
-                },
+                    ""lib/dotnet5.4/System.Banana.dll"": {";
+
+            if (useAssemblyVersions)
+            {
+                json +=
+@"                            ""assemblyVersion"": ""1.2.3"",
+                            ""fileVersion"": ""7.8.9""
+                    }";
+            }
+            else
+            {
+                json += " }";
+            }
+
+            json +=
+@"                },
                 ""runtimeTargets"": {
                     ""lib/win7/System.Banana.dll"": { ""assetType"": ""runtime"", ""rid"": ""win7-x64""},
                     ""lib/win7/Banana.dll"": { ""assetType"": ""native"", ""rid"": ""win7-x64""}
@@ -436,7 +538,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
     },
     ""libraries"":{
         ""MyApp/1.0.1"": {
-            ""type"": ""project"",
+            ""type"": ""project""
         },
         ""System.Banana/1.0.0"": {
             ""type"": ""package"",
@@ -445,15 +547,16 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""path"": ""PackagePath"",
             ""hashPath"": ""PackageHashPath"",
             ""runtimeStoreManifestName"": ""placeHolderManifest.xml""
-        },
+        }
     }
-}");
+}";
+            var context = Read(json);
+
             context.CompileLibraries.Should().HaveCount(2);
             var project = context.RuntimeLibraries.Should().Contain(l => l.Name == "MyApp").Subject;
             project.Version.Should().Be("1.0.1");
             project.RuntimeAssemblyGroups.GetDefaultAssets().Should().Contain("MyApp.dll");
             project.Type.Should().Be("project");
-
 
             var package = context.RuntimeLibraries.Should().Contain(l => l.Name == "System.Banana").Subject;
             package.Version.Should().Be("1.0.0");
@@ -466,7 +569,20 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             package.ResourceAssemblies.Should().Contain(a => a.Path == "System.Banana.resources.dll")
                 .Subject.Locale.Should().Be("en-US");
 
-            package.RuntimeAssemblyGroups.GetDefaultAssets().Should().Contain("lib/dotnet5.4/System.Banana.dll");
+            if (useAssemblyVersions)
+            {
+                var assets = package.RuntimeAssemblyGroups.GetDefaultRuntimeFileAssets();
+                assets.Should().HaveCount(1);
+                var runtimeFile = assets.First();
+                runtimeFile.Path.Should().Be("lib/dotnet5.4/System.Banana.dll");
+                runtimeFile.AssemblyVersion.Should().Be("1.2.3");
+                runtimeFile.FileVersion.Should().Be("7.8.9");
+            }
+            else
+            {
+                package.RuntimeAssemblyGroups.GetDefaultAssets().Should().Contain("lib/dotnet5.4/System.Banana.dll");
+            }
+
             package.RuntimeAssemblyGroups.GetRuntimeAssets("win7-x64").Should().Contain("lib/win7/System.Banana.dll");
             package.NativeLibraryGroups.GetRuntimeAssets("win7-x64").Should().Contain("lib/win7/Banana.dll");
         }
@@ -484,8 +600,8 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""System.Banana/1.0.0"": {
                 ""runtimeTargets"": {
                     ""runtime/win7-x64/lib/_._"": { ""assetType"": ""runtime"", ""rid"": ""win7-x64""},
-                    ""runtime/linux-x64/native/_._"": { ""assetType"": ""native"", ""rid"": ""linux-x64""},
-                },
+                    ""runtime/linux-x64/native/_._"": { ""assetType"": ""native"", ""rid"": ""linux-x64""}
+                }
             }
         }
     },
@@ -494,7 +610,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""type"": ""package"",
             ""serviceable"": false,
             ""sha512"": ""HASH-System.Banana""
-        },
+        }
     }
 }");
             context.CompileLibraries.Should().HaveCount(1);
@@ -535,7 +651,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             ""type"": ""package"",
             ""serviceable"": false,
             ""sha512"": ""HASH-System.Banana""
-        },
+        }
     }
 }");
             var package = context.RuntimeLibraries.Should().Contain(l => l.Name == "System.Banana").Subject;
@@ -565,11 +681,11 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         ""optimize"": true
     },
     ""targets"": {
-        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {},
+        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {}
     }
 }");
             context.CompilationOptions.AllowUnsafe.Should().Be(true);
-            context.CompilationOptions.Defines.Should().BeEquivalentTo(new [] {"MY", "DEFINES"});
+            context.CompilationOptions.Defines.Should().BeEquivalentTo(new[] { "MY", "DEFINES" });
             context.CompilationOptions.DelaySign.Should().Be(true);
             context.CompilationOptions.EmitEntryPoint.Should().Be(true);
             context.CompilationOptions.GenerateXmlDocumentation.Should().Be(true);
@@ -602,7 +718,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         ""optimize"": true
     },
     ""targets"": {
-        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {},
+        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {}
     }
 }");
             context.CompilationOptions.AllowUnsafe.Should().Be(true);

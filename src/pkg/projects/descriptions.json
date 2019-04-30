@@ -1,7 +1,7 @@
 [
     {
         "Name": "RuntimePackage",
-        "Description": "Internal implementation package not meant for direct consumption.  Please do not reference directly.",
+        "Description": "Internal implementation package not meant for direct consumption. Please do not reference directly.",
         "CommonTypes": [ ]
     },
     {
@@ -36,17 +36,22 @@
     },
     {
         "Name": "Microsoft.NETCore.App",
-        "Description": "A set of .NET API's that are included in the default .NET Core application model.",
+        "Description": "A set of .NET APIs that are included in the default .NET Core application model.",
         "CommonTypes": [ ]
     },
     {
-        "Name": "Microsoft.NETCore.UniversalWindowsPlatform",
-        "Description": "Provides a set of packages that can be used when building Universal Windows applications on .NETCore.",
+        "Name": "Microsoft.NETCore.App.Ref",
+        "Description": "A set of .NET APIs that are included in the default .NET Core application model. Contains reference assemblies, documentation, and other design-time assets.",
         "CommonTypes": [ ]
     },
     {
-        "Name": "Microsoft.Net.UWPCoreRuntimeSdk",
-        "Description": "Provides the CoreCLR runtime and build tools to build and run Universal Windows applications using CoreCLR.",
+        "Name": "Microsoft.WindowsDesktop.App.Ref",
+        "Description": "Windows Forms and WPF targeting pack. Contains reference assemblies, documentation, and other design-time assets.",
         "CommonTypes": [ ]
     },
+    {
+        "Name": "NETStandard.Library.Ref",
+        "Description": "A set of standard .NET APIs that are prescribed to be used and supported together. Contains reference assemblies, documentation, and other design-time assets.",
+        "CommonTypes": [ ]
+    }
 ]

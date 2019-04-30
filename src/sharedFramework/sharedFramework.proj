@@ -16,25 +16,35 @@
     </BuildTargets>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <CommonProjectArgs>$(MSBuildPassThroughPropertyList) /p:TargetFramework=$(NETCoreAppFramework) /p:RuntimeIdentifier=$(PackageTargetRid)</CommonProjectArgs>
+
+    <!-- SFP is short for SharedFrameworkPublish. Using an abreviation to prevent long path issues. -->
+    <SharedFrameworkIntermediatePackagesDir>$(IntermediateOutputRootPath)SFP.packages\</SharedFrameworkIntermediatePackagesDir>
+    <SharedFrameworkNameAndVersionRoot>$(SharedFrameworkPublishDir)shared\$(SharedFrameworkName)\$(SharedFrameworkNugetVersion)</SharedFrameworkNameAndVersionRoot>
+  </PropertyGroup>
+
   <Target Name="Build" DependsOnTargets="$(BuildTargets)" />
 
   <Target Name="PublishSharedFrameworkAndSharedHost"
           DependsOnTargets="RestoreLockedCoreHost">
-    
+
     <PropertyGroup>
       <SharedFrameworkSourceRoot>$(MSBuildThisFileDirectory)framework</SharedFrameworkSourceRoot>
-      <CommonSharedFrameworkArgs>/p:TargetFramework=$(Framework) /p:RuntimeIdentifier=$(PackageTargetRid) /p:RuntimeFrameworkVersion=$(SharedFrameworkNugetVersion)</CommonSharedFrameworkArgs>
-    </PropertyGroup>  
+      <CommonSharedFrameworkArgs>$(CommonProjectArgs) /p:RuntimeFrameworkVersion=$(SharedFrameworkNugetVersion)</CommonSharedFrameworkArgs>
+    </PropertyGroup>
 
     <RemoveDir Directories="$(SharedFrameworkNameAndVersionRoot)" />
 
-    <Exec Command="$(DotnetRestoreCommand) --source $(PackagesOutDir) $(CommonSharedFrameworkArgs)"
+    <!-- Specify a separate 'packages' directory in case we are building an already built version of Microsoft.NETCore.App and the $(PackagesDir)
+         already contains the same version as we are building.  (ex. building source-build for `2.0.0` when `2.0.0` has already shipped.
+    -->
+    <Exec Command="$(DotnetRestoreCommandNoPackages) --source $(PackageOutputPath) --packages $(SharedFrameworkIntermediatePackagesDir) $(CommonSharedFrameworkArgs)"
           WorkingDirectory="$(SharedFrameworkSourceRoot)" />
 
     <!-- We publish to a sub folder of the PublishRoot so tools like heat and zip can generate folder structures easier. -->
-    <Exec Command="$(DotnetToolCommand) publish --output $(SharedFrameworkNameAndVersionRoot) $(CommonSharedFrameworkArgs)"
-          WorkingDirectory="$(SharedFrameworkSourceRoot)"
-          EnvironmentVariables="NUGET_PACKAGES=$(PackagesDir)" />
+    <Exec Command="$(DotnetToolCommand) publish --no-restore --output $(SharedFrameworkNameAndVersionRoot) $(CommonSharedFrameworkArgs)"
+          WorkingDirectory="$(SharedFrameworkSourceRoot)" />
 
     <!-- Clean deps.json -->
     <ChangeEntryPointLibraryName DepsFile="$(SharedFrameworkNameAndVersionRoot)/framework.deps.json" />
@@ -48,15 +58,18 @@
       <ToDelete Include="$(SharedFrameworkNameAndVersionRoot)\framework.runtimeconfig.json" />
       <ToDelete Include="$(SharedFrameworkNameAndVersionRoot)\apphost$(ExeSuffix)" />
       <ToDelete Include="$(SharedFrameworkNameAndVersionRoot)\$(LibPrefix)hostfxr$(LibSuffix)" />
+      <ToDelete Include="$(SharedFrameworkNameAndVersionRoot)\$(LibPrefix)comhost$(LibSuffix)" />
+      <ToDelete Include="$(SharedFrameworkNameAndVersionRoot)\$(LibPrefix)ijwhost$(LibSuffix)" />
+      <ToDelete Include="$(SharedFrameworkNameAndVersionRoot)\ijwhost.lib" />
     </ItemGroup>
 
     <Message Text="To delete: @(ToDelete)" />
     <Delete Files="@(ToDelete)" />
 
     <!-- Rename deps file -->
-    <Move SourceFiles="$(SharedFrameworkNameAndVersionRoot)\framework.deps.json" 
+    <Move SourceFiles="$(SharedFrameworkNameAndVersionRoot)\framework.deps.json"
           DestinationFiles="$(SharedFrameworkNameAndVersionRoot)\$(SharedFrameworkName).deps.json" />
-    
+
     <!-- Use the muxer we intended to consume (either restored a shipped version or the one we built) -->
     <!-- Ensure the host is executable.  See https://github.com/NuGet/Home/issues/4424 -->
     <Exec Command="chmod u+x $(CoreHostLockedDir)dotnet$(ExeSuffix)"
@@ -70,7 +83,7 @@
     <ItemGroup>
       <SharedFrameworkSymbols Include="$(PackageSymbolsBinDir)Microsoft.NETCore.App/**/*.pdb" />
       <SharedFrameworkSymbols Include="$(PackageSymbolsBinDir)Microsoft.NETCore.App/**/*$(SymbolFileExtension)" />
-      <SharedFrameworkSymbols Include="$(PackageSymbolsBinDir)Microsoft.NETCore.App/**/*$(CrossGenSymbolExtension)" 
+      <SharedFrameworkSymbols Include="$(PackageSymbolsBinDir)Microsoft.NETCore.App/**/*$(CrossGenSymbolExtension)"
                               Condition="'$(CrossGenSymbolExtension)' != ''" />
     </ItemGroup>
     <RemoveDir Directories="$(SharedFrameworkPublishSymbolsDir)"
@@ -109,11 +122,12 @@
 
   <Target Name="GenerateRuntimeGraph">
     <PropertyGroup>
-      <SharedFrameworkAssetsFile>$(SharedFrameworkSourceRoot)/obj/project.assets.json</SharedFrameworkAssetsFile>
+      <SharedFrameworkAssetsFile>$(IntermediateOutputRootPath)/framework/project.assets.json</SharedFrameworkAssetsFile>
       <SharedFrameworkDepsFile>$(SharedFrameworkNameAndVersionRoot)\$(SharedFrameworkName).deps.json</SharedFrameworkDepsFile>
       <RuntimeGraphGeneratorRuntime Condition="'$(OSGroup)'=='Windows_NT'">win</RuntimeGraphGeneratorRuntime>
       <RuntimeGraphGeneratorRuntime Condition="'$(OSGroup)'=='OSX'">osx</RuntimeGraphGeneratorRuntime>
-      <RuntimeGraphGeneratorRuntime Condition="'$(RuntimeGraphGeneratorRuntime)'==''">linux</RuntimeGraphGeneratorRuntime>      
+      <RuntimeGraphGeneratorRuntime Condition="'$(OSGroup)'=='FreeBSD'">freebsd</RuntimeGraphGeneratorRuntime>
+      <RuntimeGraphGeneratorRuntime Condition="'$(RuntimeGraphGeneratorRuntime)'==''">linux</RuntimeGraphGeneratorRuntime>
     </PropertyGroup>
 
     <ItemGroup>
@@ -122,7 +136,7 @@
       <TrimPkgsFromDeps Include="microsoft.netcore.dotnetapphost" />
       <TrimPkgsFromDeps Include="microsoft.netcore.dotnethostresolver" />
     </ItemGroup>
-    
+
     <ProcessSharedFrameworkDeps AssetsFilePath="$(SharedFrameworkAssetsFile)"
                                 DepsFilePath="$(SharedFrameworkDepsFile)"
                                 PackagesToRemove="@(TrimPkgsFromDeps)"
@@ -133,18 +147,19 @@
   <Target Name="RestoreLockedCoreHost">
     <PropertyGroup>
       <LockedHostSourceRoot>$(MSBuildThisFileDirectory)lockedhost</LockedHostSourceRoot>
-      <CommonLockedHostArgs>/p:TargetFramework=$(Framework) /p:RuntimeIdentifier=$(PackageTargetRid) /p:HostResolverVersion=$(HostResolverVersion) /p:HostVersion=$(HostVersion)</CommonLockedHostArgs>
+      <CommonLockedHostArgs>$(CommonProjectArgs) /p:HostResolverVersion=$(HostResolverVersion) /p:HostVersion=$(HostVersion)</CommonLockedHostArgs>
     </PropertyGroup>
 
     <RemoveDir Directories="$(CoreHostLockedDir)" />
 
-    <Exec Command="$(DotnetRestoreCommand) --source $(PackagesOutDir) $(CommonLockedHostArgs)"
+    <!-- Specify a separate 'packages' directory in case we are building an already built version of Microsoft.NETCore.DotNetHost and the $(PackagesDir)
+         already contains the same version as we are building.  (ex. building source-build for `2.0.0` when `2.0.0` has already shipped.
+    -->
+    <Exec Command="$(DotnetRestoreCommandNoPackages) --source $(PackageOutputPath) --packages $(SharedFrameworkIntermediatePackagesDir) $(CommonLockedHostArgs)"
           WorkingDirectory="$(LockedHostSourceRoot)" />
 
-
-    <Exec Command="$(DotnetToolCommand) publish --output $(CoreHostLockedDir) $(CommonLockedHostArgs)"
-          WorkingDirectory="$(LockedHostSourceRoot)"
-          EnvironmentVariables="NUGET_PACKAGES=$(PackagesDir)" />
+    <Exec Command="$(DotnetToolCommand) publish --no-restore --output $(CoreHostLockedDir) $(CommonLockedHostArgs)"
+          WorkingDirectory="$(LockedHostSourceRoot)" />
   </Target>
 
 </Project>

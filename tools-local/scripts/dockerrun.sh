@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) .NET Foundation and contributors. All rights reserved.
-# Licensed under the MIT license. See LICENSE file in the project root for full license information.
+# Licensed to the .NET Foundation under one or more agreements.
+# The .NET Foundation licenses this file to you under the MIT license.
+# See the LICENSE file in the project root for more information.
 #
 
 set -e
@@ -99,23 +100,10 @@ echo "Using code from: $DOCKER_HOST_SHARE_DIR"
 docker run $INTERACTIVE -t --rm --sig-proxy=true \
     --name $DOTNET_BUILD_CONTAINER_NAME \
     -v $DOCKER_HOST_SHARE_DIR:/opt/code \
-    -e CHANNEL \
-    -e CONNECTION_STRING \
-    -e REPO_ID \
-    -e REPO_USER \
-    -e REPO_PASS \
-    -e REPO_SERVER \
-    -e DOTNET_BUILD_SKIP_CROSSGEN \
-    -e PUBLISH_TO_AZURE_BLOB \
-    -e DOCKER_HUB_REPO \
-    -e DOCKER_HUB_TRIGGER_TOKEN \
     -e NUGET_FEED_URL \
     -e NUGET_SYMBOLS_FEED_URL \
     -e NUGET_API_KEY \
     -e GITHUB_PASSWORD \
-    -e CLI_NUGET_FEED_URL \
-    -e CLI_NUGET_SYMBOLS_FEED_URL \
-    -e CLI_NUGET_API_KEY \
     $DOTNET_BUILD_CONTAINER_TAG \
     $BUILD_COMMAND "$@"
 

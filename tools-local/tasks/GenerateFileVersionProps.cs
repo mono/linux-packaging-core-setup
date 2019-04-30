@@ -2,18 +2,21 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System;
-using Microsoft.Build.Framework;
-using System.IO;
-using System.Collections.Generic;
 using Microsoft.Build.Construction;
+using Microsoft.Build.Framework;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace Microsoft.DotNet.Build.Tasks
 {
     public partial class GenerateFileVersionProps : BuildTask
     {
-        const string PlatformManifestsItem = "PackageConflictPlatformManifests";
-        const string PreferredPackagesProperty = "PackageConflictPreferredPackages";
+        private const string PlatformManifestsItem = "PackageConflictPlatformManifests";
+        private const string PreferredPackagesProperty = "PackageConflictPreferredPackages";
+        private static readonly Version ZeroVersion = new Version(0, 0, 0, 0);
+
 
         [Required]
         public ITaskItem[] Files { get; set; }
@@ -32,6 +35,12 @@ namespace Microsoft.DotNet.Build.Tasks
 
         [Required]
         public string PreferredPackages { get; set; }
+
+        /// <summary>
+        /// The task normally enforces that all DLL and EXE files have a non-0.0.0.0 FileVersion.
+        /// This flag disables the check.
+        /// </summary>
+        public bool PermitDllAndExeFilesLackingFileVersion { get; set; }
 
         public override bool Execute()
         {
@@ -58,15 +67,21 @@ namespace Microsoft.DotNet.Build.Tasks
 
                 if (fileVersions.TryGetValue(fileName, out existing))
                 {
-                    if (current.AssemblyVersion != null &&
-                        existing.AssemblyVersion != null &&
-                        current.AssemblyVersion != existing.AssemblyVersion)
+                    if (current.AssemblyVersion != null)
                     {
-                        if (current.AssemblyVersion > existing.AssemblyVersion)
+                        if (existing.AssemblyVersion == null)
                         {
                             fileVersions[fileName] = current;
+                            continue;
                         }
-                        continue;
+                        else if (current.AssemblyVersion != existing.AssemblyVersion)
+                        {
+                            if (current.AssemblyVersion > existing.AssemblyVersion)
+                            {
+                                fileVersions[fileName] = current;
+                            }
+                            continue;
+                        }
                     }
 
                     if (current.FileVersion != null && 
@@ -84,6 +99,28 @@ namespace Microsoft.DotNet.Build.Tasks
                 }
             }
 
+            // Check for versionless files after all duplicate filenames are resolved, rather than
+            // logging errors immediately upon encountering a versionless file. There may be
+            // duplicate filenames where only one has a version, and this is ok. The highest version
+            // is used.
+            if (!PermitDllAndExeFilesLackingFileVersion)
+            {
+                var versionlessFiles = fileVersions
+                    .Where(p =>
+                        p.Key.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                        p.Key.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                    .Where(p => (p.Value.FileVersion ?? ZeroVersion) == ZeroVersion)
+                    .Select(p => p.Value.File.ItemSpec)
+                    .ToArray();
+
+                if (versionlessFiles.Any())
+                {
+                    Log.LogError(
+                        $"Missing FileVersion in {versionlessFiles.Length} shared framework files:" +
+                        string.Concat(versionlessFiles.Select(f => Environment.NewLine + f)));
+                }
+            }
+
             var props = ProjectRootElement.Create();
             var itemGroup = props.AddItemGroup();
             // set the platform manifest when the platform is not being published as part of the app
@@ -92,6 +129,7 @@ namespace Microsoft.DotNet.Build.Tasks
             var manifestFileName = Path.GetFileName(PlatformManifestFile);
             itemGroup.AddItem(PlatformManifestsItem, $"$(MSBuildThisFileDirectory){manifestFileName}");
 
+            Directory.CreateDirectory(Path.GetDirectoryName(PlatformManifestFile));
             using (var manifestWriter = File.CreateText(PlatformManifestFile))
             {
                 foreach (var fileData in fileVersions)
@@ -124,8 +162,9 @@ namespace Microsoft.DotNet.Build.Tasks
             {
                 return new FileVersionData()
                 {
-                    AssemblyVersion = FileUtilities.TryGetAssemblyVersion(filePath),
-                    FileVersion = FileUtilities.GetFileVersion(filePath)
+                    AssemblyVersion = FileUtilities.GetAssemblyName(filePath)?.Version,
+                    FileVersion = FileUtilities.GetFileVersion(filePath),
+                    File = file
                 };
             }
             else
@@ -140,13 +179,14 @@ namespace Microsoft.DotNet.Build.Tasks
                 {
                     // FileVersionInfo will return 0.0.0.0 if a file doesn't have a version.
                     // match that behavior
-                    fileVersion = new Version(0, 0, 0, 0);
+                    fileVersion = ZeroVersion;
                 }
 
                 return new FileVersionData()
                 {
                     AssemblyVersion = assemblyVersion,
-                    FileVersion = fileVersion
+                    FileVersion = fileVersion,
+                    File = file
                 };
             }
         }
@@ -155,6 +195,7 @@ namespace Microsoft.DotNet.Build.Tasks
         {
             public Version AssemblyVersion { get; set; }
             public Version FileVersion { get; set; }
+            public ITaskItem File { get; set; }
         }
     }
 }
