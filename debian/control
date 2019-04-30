@@ -3,8 +3,8 @@ Priority: optional
 Maintainer: Jo Shields <joshield@microsoft.com>
 Build-Depends: debhelper (>= 7.0.50~),
         cmake (>= 2.8.10),
-        gcc (>= 4:4.7) | gcc-4.7 | gcc-mozilla (>= 4.7),
-        g++ (>= 4:4.7) | g++-4.7 | gcc-mozilla (>= 4.7),
+        gcc (>= 4:4.7),
+        g++ (>= 4:4.7),
 Standards-Version: 3.9.8
 Section: libs
 Homepage: https://github.com/dotnet/core-setup
