@@ -1,0 +1,33 @@
+Index: xamarin-pkg-core-setup/src/corehost/build.sh
+===================================================================
+--- xamarin-pkg-core-setup.orig/src/corehost/build.sh
++++ xamarin-pkg-core-setup/src/corehost/build.sh
+@@ -209,28 +209,6 @@ __cmake_bin_prefix="$__bin_dir/$__base_r
+ __intermediateOutputPath="$__baseIntermediateOutputPath/$__base_rid.$__configuration/corehost"
+ export __CrossToolChainTargetRID=$__base_rid
+ 
+-# Set up the environment to be used for building with clang.
+-if command -v "clang-3.5" > /dev/null 2>&1; then
+-    export CC="$(command -v clang-3.5)"
+-    export CXX="$(command -v clang++-3.5)"
+-elif command -v "clang-3.6" > /dev/null 2>&1; then
+-    export CC="$(command -v clang-3.6)"
+-    export CXX="$(command -v clang++-3.6)"
+-elif command -v "clang-3.9" > /dev/null 2>&1; then
+-    export CC="$(command -v clang-3.9)"
+-    export CXX="$(command -v clang++-3.9)"
+-elif command -v "clang-5.0" > /dev/null 2>&1; then
+-    export CC="$(command -v clang-5.0)"
+-    export CXX="$(command -v clang++-5.0)"
+-elif command -v clang > /dev/null 2>&1; then
+-    export CC="$(command -v clang)"
+-    export CXX="$(command -v clang++)"
+-else
+-    echo "Unable to find Clang Compiler"
+-    echo "Install clang-3.5 or clang3.6 or clang3.9 or clang5.0"
+-    exit 1
+-fi
+-
+ if [ ! -f $__versionSourceFile ]; then
+     __versionSourceLine="static char sccsid[] __attribute__((used)) = \"@(#)No version information produced\";"
+     echo $__versionSourceLine > $__versionSourceFile
