@@ -1,0 +1,13 @@
+diff --git a/src/corehost/cli/CMakeLists.txt b/src/corehost/cli/CMakeLists.txt
+index 0ed5b8ab..52d7ac10 100644
+--- a/src/corehost/cli/CMakeLists.txt
++++ b/src/corehost/cli/CMakeLists.txt
+@@ -1,7 +1,7 @@
+ add_subdirectory(apphost)
+ add_subdirectory(dotnet)
+ add_subdirectory(fxr)
+-add_subdirectory(hostpolicy)
++#add_subdirectory(hostpolicy)
+ add_subdirectory(nethost)
+ add_subdirectory(test_fx_ver)
+ 
