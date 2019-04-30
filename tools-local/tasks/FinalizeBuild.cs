@@ -2,13 +2,13 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using System;
 using Microsoft.Build.Framework;
+using Microsoft.DotNet.Build.CloudTestTasks;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Microsoft.Build.Construction;
-using System.Net.Http;
 using System.Xml;
 using System.Globalization;
 using System.Threading.Tasks;
@@ -18,7 +18,7 @@ using System.Threading;
 
 namespace Microsoft.DotNet.Build.Tasks
 {
-    public partial class FinalizeBuild : Utility.AzureConnectionStringBuildTask
+    public class FinalizeBuild : AzureConnectionStringBuildTask
     {
         [Required]
         public string SemaphoreBlob { get; set; }
@@ -34,8 +34,6 @@ namespace Microsoft.DotNet.Build.Tasks
         public string SharedFrameworkNugetVersion { get; set; }
         [Required]
         public string SharedHostNugetVersion { get; set; }
-        [Required]
-        public string UWPCoreRuntimeSdkFullVersion { get; set; }
         [Required]
         public string ProductVersion { get; set; }
         [Required]
@@ -68,7 +66,7 @@ namespace Microsoft.DotNet.Build.Tasks
             blobLease.Acquire();
 
             // Prevent race conditions by dropping a version hint of what version this is. If we see this file
-            // and it is the same as our version then we know that a race happened where two+ builds finished 
+            // and it is the same as our version then we know that a race happened where two+ builds finished
             // at the same time and someone already took care of publishing and we have no work to do.
             if (IsLatestSpecifiedVersion(targetVersionFile) && !ForcePublish)
             {
@@ -88,13 +86,13 @@ namespace Microsoft.DotNet.Build.Tasks
                     .ToList()
                     .ForEach(f => TryDeleteBlob(f));
 
-                
+
                 // Drop the version file signaling such for any race-condition builds (see above comment).
                 CreateBlobIfNotExists(targetVersionFile);
 
                 try
                 {
-                    CopyBlobs($"Runtime/{ProductVersion}", $"Runtime/{Channel}/");
+                    CopyBlobs($"Runtime/{ProductVersion}/", $"Runtime/{Channel}/");
 
                     // Generate the latest version text file
                     string sfxVersion = GetSharedFrameworkVersionFileContent();
@@ -124,8 +122,7 @@ namespace Microsoft.DotNet.Build.Tasks
             {
                 string targetName = Path.GetFileName(blob)
                                         .Replace(SharedFrameworkNugetVersion, "latest")
-                                        .Replace(SharedHostNugetVersion, "latest")
-                                        .Replace(UWPCoreRuntimeSdkFullVersion, "latest");
+                                        .Replace(SharedHostNugetVersion, "latest");
                 string sourceBlob = blob.Replace($"/{ContainerName}/", "");
                 string destinationBlob = $"{destinationFolder}{targetName}";
                 Log.LogMessage($"Copying blob '{sourceBlob}' to '{destinationBlob}'");
@@ -158,12 +155,12 @@ namespace Microsoft.DotNet.Build.Tasks
 
         public bool DeleteBlob(string container, string blob)
         {
-            return DeleteAzureBlob.Execute(AccountName, 
-                                           AccountKey, 
-                                            ConnectionString, 
-                                            container, 
-                                            blob, 
-                                            BuildEngine, 
+            return DeleteAzureBlob.Execute(AccountName,
+                                           AccountKey,
+                                            ConnectionString,
+                                            container,
+                                            blob,
+                                            BuildEngine,
                                             HostObject);
         }
 
@@ -181,7 +178,7 @@ namespace Microsoft.DotNet.Build.Tasks
 
         public string[] GetBlobList(string path)
         {
-            return GetAzureBlobList.Execute(AccountName,
+            return ListAzureBlobs.Execute(AccountName,
                                             AccountKey,
                                             ConnectionString,
                                             ContainerName,
@@ -192,14 +189,14 @@ namespace Microsoft.DotNet.Build.Tasks
 
         public bool PublishStringToBlob(string container, string blob, string contents, string contentType = null)
         {
-            return PublishStringToAzureBlob.Execute(AccountName, 
-                                                    AccountKey, 
-                                                    ConnectionString, 
-                                                    container, 
-                                                    blob, 
-                                                    contents, 
+            return PublishStringToAzureBlob.Execute(AccountName,
+                                                    AccountKey,
+                                                    ConnectionString,
+                                                    container,
+                                                    blob,
+                                                    contents,
                                                     contentType,
-                                                    BuildEngine, 
+                                                    BuildEngine,
                                                     HostObject);
         }
     }

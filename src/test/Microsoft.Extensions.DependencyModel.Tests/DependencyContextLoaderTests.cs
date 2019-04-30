@@ -1,5 +1,6 @@
-﻿// Copyright (c) .NET Foundation and contributors. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using FluentAssertions;
 using System.Reflection;
@@ -25,7 +26,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         ""signature"":""target-signature""
     },
     ""targets"": {
-        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {},
+        "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {}
     }
 }")
                 .AddFile(
@@ -34,7 +35,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
     ""targets"": {
         "".NETCoreApp,Version=v1.0/osx.10.10-x64"": {
             
-        },
+        }
     }
 }")
                 .AddFile(
@@ -59,7 +60,7 @@ namespace Microsoft.Extensions.DependencyModel.Tests
              ""type"": ""package"",
              ""serviceable"": false,
              ""sha512"": ""HASH-System.Banana""
-         },
+         }
      }
  }")
                 .Build();
@@ -72,6 +73,22 @@ namespace Microsoft.Extensions.DependencyModel.Tests
 
             var context = loader.Load(Assembly.GetEntryAssembly());
             context.RuntimeLibraries.Should().Contain(l => l.Name == "System.Banana");
+        }
+
+        [Fact]
+        public void LoadCanLoadANonEntryAssembly()
+        {
+            var loader = new DependencyContextLoader();
+            var context = loader.Load(typeof(DependencyContextLoaderTests).Assembly);
+
+            context.RuntimeLibraries.Should().Contain(l => l.Name == "Microsoft.Extensions.DependencyModel");
+        }
+
+        [Fact]
+        public void LoadReturnsNullWhenNotFound()
+        {
+            var loader = new DependencyContextLoader();
+            Assert.Null(loader.Load(typeof(string).Assembly));
         }
     }
 }

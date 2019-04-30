@@ -10,13 +10,11 @@
     <ItemGroup>
       <PackageProjects Include="$(MSBuildThisFileDirectory)Microsoft.DotNet.PlatformAbstractions/Microsoft.DotNet.PlatformAbstractions.csproj" />
       <PackageProjects Include="$(MSBuildThisFileDirectory)Microsoft.Extensions.DependencyModel/Microsoft.Extensions.DependencyModel.csproj" />
+      <PackageProjects Include="$(MSBuildThisFileDirectory)Microsoft.NET.Build.Bundle/Microsoft.NET.Build.Bundle.csproj" />
     </ItemGroup>
 
     <PropertyGroup>
-      <BuildArgs>/p:Configuration=$(ConfigurationGroup)</BuildArgs>
-      <BuildArgs Condition="'$(LatestCommit)' != ''">$(BuildArgs) /p:LatestCommit=$(LatestCommit)</BuildArgs>
-      <BuildArgs Condition="'$(BuiltByString)' != ''">$(BuildArgs) /p:BuiltByString="$(BuiltByString)"</BuildArgs>
-      <BuildArgs>$(BuildArgs) /p:BaseOutputPath=$(IntermediateOutputForPackaging)</BuildArgs>
+      <BuildArgs>$(NoRestoreArg) $(MSBuildPassThroughPropertyList) /p:BaseOutputPath=$(IntermediateOutputForPackaging)</BuildArgs>
     </PropertyGroup>
 
     <Exec Command="$(DotnetToolCommand) build $(BuildArgs) %(PackageProjects.Identity)" />

@@ -1,5 +1,6 @@
-// Copyright (c) .NET Foundation and contributors. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 #include "pal.h"
 #include "utils.h"
@@ -21,7 +22,7 @@ bool deps_entry_t::to_path(const pal::string_t& base, bool look_in_base, pal::st
 
     // Entry relative path contains '/' separator, sanitize it to use
     // platform separator. Perf: avoid extra copy if it matters.
-    pal::string_t pal_relative_path = relative_path;
+    pal::string_t pal_relative_path = asset.relative_path;
     if (_X('/') != DIR_SEPARATOR)
     {
         replace_char(&pal_relative_path, _X('/'), DIR_SEPARATOR);
@@ -64,7 +65,7 @@ bool deps_entry_t::to_dir_path(const pal::string_t& base, pal::string_t* str) co
 {
     if (asset_type == asset_types::resources)
     {
-        pal::string_t pal_relative_path = relative_path;
+        pal::string_t pal_relative_path = asset.relative_path;
         if (_X('/') != DIR_SEPARATOR)
         {
             replace_char(&pal_relative_path, _X('/'), DIR_SEPARATOR);
@@ -75,17 +76,15 @@ bool deps_entry_t::to_dir_path(const pal::string_t& base, pal::string_t* str) co
         pal::string_t ietf_dir = get_directory(pal_relative_path);
         pal::string_t ietf = ietf_dir;
 
-        // get_directory returns with DIR_SEPERATOR appended that we need to remove.
-        if (ietf.back() == DIR_SEPARATOR) {
-            ietf.pop_back();
-        }
+        // get_directory returns with DIR_SEPARATOR appended that we need to remove.
+        remove_trailing_dir_seperator(&ietf);
 
         // Extract IETF code from "lib/<netstandrd_ver>/<ietf-code>"
         ietf = get_filename(ietf);
         
         pal::string_t base_ietf_dir = base;
         append_path(&base_ietf_dir, ietf.c_str());
-        trace::verbose(_X("Detected a resource asset, will query dir/ietf-tag/resource base: %s asset: %s"), base_ietf_dir.c_str(), asset_name.c_str());
+        trace::verbose(_X("Detected a resource asset, will query dir/ietf-tag/resource base: %s asset: %s"), base_ietf_dir.c_str(), asset.name.c_str());
         return to_path(base_ietf_dir, true, str);
     }
     return to_path(base, true, str);

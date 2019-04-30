@@ -1,5 +1,6 @@
-﻿// Copyright (c) .NET Foundation and contributors. All rights reserved.
-// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System;
 using System.Collections.Generic;
@@ -90,6 +91,23 @@ namespace Microsoft.Extensions.DependencyModel.Tests
         }
 
         [Fact]
+        public void ResolvesReferenceType()
+        {
+            var fileSystem = FileSystemMockBuilder
+                .Create()
+                .AddFiles(BasePathRefs, TestLibraryFactory.DefaultAssembly)
+                .Build();
+            var resolver = CreateResolver(fileSystem);
+            var library = TestLibraryFactory.Create(
+                TestLibraryFactory.ReferenceType,
+                assemblies: TestLibraryFactory.EmptyAssemblies);
+
+            var result = resolver.TryResolveAssemblyPaths(library, null);
+
+            Assert.True(result);
+        }
+
+        [Fact]
         public void RequiresExistingRefsFolderForNonProjects()
         {
             var fileSystem = FileSystemMockBuilder
@@ -118,6 +136,27 @@ namespace Microsoft.Extensions.DependencyModel.Tests
             var library = TestLibraryFactory.Create(
                TestLibraryFactory.ProjectType,
                assemblies: TestLibraryFactory.TwoAssemblies);
+            var resolver = CreateResolver(fileSystem);
+            var assemblies = new List<string>();
+
+            var result = resolver.TryResolveAssemblyPaths(library, assemblies);
+
+            Assert.True(result);
+            assemblies.Should().HaveCount(2);
+            assemblies.Should().Contain(Path.Combine(BasePath, TestLibraryFactory.DefaultAssembly));
+            assemblies.Should().Contain(Path.Combine(BasePath, TestLibraryFactory.SecondAssembly));
+        }
+
+        [Fact]
+        public void ResolvesDirectReferenceWithoutRefsFolder()
+        {
+            var fileSystem = FileSystemMockBuilder
+                .Create()
+                .AddFiles(BasePath, TestLibraryFactory.DefaultAssembly, TestLibraryFactory.SecondAssembly)
+                .Build();
+            var library = TestLibraryFactory.Create(
+                TestLibraryFactory.ReferenceType,
+                assemblies: TestLibraryFactory.TwoAssemblies);
             var resolver = CreateResolver(fileSystem);
             var assemblies = new List<string>();
 

@@ -1,4 +1,8 @@
-﻿using System;
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
+
+using System;
 
 namespace Microsoft.DotNet.Cli.Build.Framework
 {
@@ -10,6 +14,11 @@ namespace Microsoft.DotNet.Cli.Build.Framework
         public static void BeginSection(string type, string name)
         {
             Reporter.Output.WriteLine($"[{type.PadRight(10)} >]".Green() + $" [....] [{(DateTime.Now - _initialTime).ToString(TimeSpanFormat)}]".Blue() + $" {name}");
+        }
+
+        public static void SectionComment(string type, string comment)
+        {
+            Reporter.Output.WriteLine($"[{type.PadRight(10)} -]".Green() + $" [....] [{(DateTime.Now - _initialTime).ToString(TimeSpanFormat)}]".Blue() + $" {comment}");
         }
 
         public static void EndSection(string type, string name, bool success)
