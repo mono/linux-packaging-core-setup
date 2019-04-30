@@ -13,8 +13,8 @@
 # published by the Open Source Initiative.
 
 Name:           msbuild-libhostfxr
-Version:	2.0.0.2017.07.06.00.01
-Release:	0.xamarin.4
+Version:	3.0.0.2019.04.16.02.13
+Release:	0.xamarin.1
 Summary:        Build system for .NET projects - unmanaged helper library
 License:        MIT
 Group:          Development/Libraries/Other
