@@ -20,7 +20,7 @@ License:        MIT
 Group:          Development/Libraries/Other
 Url:            https://github.com/dotnet/core-setup
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
-Source0:        core-setup-%{version}.tar.gz
+Source0:        core-setup-%{version}.tar.xz
 Patch0:         avoid_cmake_unknown_command.patch
 Patch1:         a-gcc-is-fine-too.patch
 %if 0%{?rhel} >= 7
